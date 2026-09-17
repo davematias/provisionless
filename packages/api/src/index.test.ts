@@ -1,7 +1,10 @@
 import { expect, it } from "vitest";
 
-import { getPackageName } from "./index.js";
+import { app } from "./index.ts";
 
-it("exposes the api package name", () => {
-  expect(getPackageName()).toBe("@provisionless/api");
+it("serves the health example route", async () => {
+  const response = await app.request("/health");
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toEqual({ status: "ok" });
 });

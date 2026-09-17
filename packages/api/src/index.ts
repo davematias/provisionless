@@ -1,3 +1,2 @@
-export function getPackageName(): string {
-  return "@provisionless/api";
-}
+export { app } from "./app.ts";
+export type { AppType } from "./app.ts";
