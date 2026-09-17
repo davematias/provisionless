@@ -10,11 +10,11 @@ A lightweight, self-hosted headless CMS with no infrastructure to provision or m
 
 This is an npm workspaces monorepo. The shipped product is made of three co-located components:
 
-| Package | Directory | Purpose |
-|---|---|---|
-| `@provisionless/admin` | `packages/admin` | Admin website for managing content. |
-| `@provisionless/api` | `packages/api` | Backend/content API service. |
-| `@provisionless/cli` | `packages/cli` | Deploy CLI; the single entry point for deploying Provisionless. |
+| Package                | Directory        | Purpose                                                         |
+| ---------------------- | ---------------- | --------------------------------------------------------------- |
+| `@provisionless/admin` | `packages/admin` | Admin website for managing content.                             |
+| `@provisionless/api`   | `packages/api`   | Backend/content API service.                                    |
+| `@provisionless/cli`   | `packages/cli`   | Deploy CLI; the single entry point for deploying Provisionless. |
 
 Each package lives under `packages/*`, installs and builds independently, and inherits a shared
 TypeScript config (`tsconfig.base.json` at the repo root).
@@ -27,9 +27,9 @@ Requires Node.js 22+ and npm 11+ (pinned in `package.json` via `packageManager` 
 npm install        # install all workspace dependencies
 npm run build      # build every package (Turbo)
 npm test           # run unit tests across packages (Vitest via Turbo)
-npm run lint       # lint every package (Biome)
+npm run lint       # lint every package (oxlint)
 npm run typecheck  # typecheck every package (TypeScript)
-npm run format     # format the repo (Biome)
+npm run format     # format the repo (oxfmt)
 ```
 
 Tasks are orchestrated with [Turborepo](turbo.json); each command above fans out to the workspace
