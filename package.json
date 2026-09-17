@@ -17,12 +17,13 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "format": "biome format --write .",
-    "format:check": "biome format .",
-    "check": "turbo run lint typecheck test"
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "check": "turbo run lint typecheck test && npm run format:check"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.13",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
