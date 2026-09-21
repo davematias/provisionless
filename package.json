@@ -1,5 +1,5 @@
 {
-  "name": "provisionless",
+  "name": "provisionless-monorepo",
   "version": "0.0.0",
   "private": true,
   "description": "A serverless, headless CMS.",
