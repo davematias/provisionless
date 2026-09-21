@@ -44,11 +44,11 @@ import {
   putRolePolicy,
   updateFunctionEnvironment,
 } from "../aws/lambda.ts";
+import { adminNames } from "../aws/names.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
 import type { DeployContext } from "./context.ts";
 
-const PREFIX = "provisionless";
 const CACHING_DISABLED_POLICY = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad";
 const CACHING_OPTIMIZED_POLICY = "658327ea-f89d-4fab-a63d-7e88639e58f6";
 const ALL_VIEWER_EXCEPT_HOST_POLICY = "b689b0a8-53d0-40ab-baf2-68738e2966ac";
@@ -286,7 +286,10 @@ async function ensureOriginAccessControl(
   return created.OriginAccessControl.Id;
 }
 
-async function findDistribution(ctx: DeployContext): Promise<
+async function findDistribution(
+  ctx: DeployContext,
+  comment: string,
+): Promise<
   | {
       id: string;
       domainName: string;
@@ -297,7 +300,7 @@ async function findDistribution(ctx: DeployContext): Promise<
   | undefined
 > {
   const listed = await ctx.clients.cloudfront.send(new ListDistributionsCommand({}));
-  const found = listed.DistributionList?.Items?.find((item) => item.Comment === `${PREFIX}-admin`);
+  const found = listed.DistributionList?.Items?.find((item) => item.Comment === comment);
   if (!found?.Id) {
     return undefined;
   }
@@ -358,6 +361,7 @@ function buildDistributionConfig(
   output: OpenNextOutput,
   origins: Origin[],
   callerReference: string,
+  comment: string,
 ): DistributionConfig {
   const cachePolicyFor = (origin: OriginName): string =>
     origin === "s3" || origin === "imageOptimizer"
@@ -391,7 +395,7 @@ function buildDistributionConfig(
 
   return {
     CallerReference: callerReference,
-    Comment: `${PREFIX}-admin`,
+    Comment: comment,
     Aliases: { Quantity: 0 },
     Enabled: true,
     HttpVersion: "http2and3",
@@ -461,14 +465,18 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
   }
 
   const output = JSON.parse(readFileSync(outputPath, "utf8")) as OpenNextOutput;
+  const names = adminNames(ctx.appPrefix, ctx.accountId);
 
-  const assetsBucket = `${PREFIX}-admin-assets-${ctx.accountId}`;
-  const tableName = `${PREFIX}-admin-tag-cache`;
-  const queueName = `${PREFIX}-admin-revalidation.fifo`;
-  const roleName = `${PREFIX}-admin-lambda-role`;
-  const serverName = `${PREFIX}-admin-server`;
-  const imageName = `${PREFIX}-admin-image`;
-  const revalidationName = `${PREFIX}-admin-revalidation`;
+  const {
+    assetsBucket,
+    tagCacheTable: tableName,
+    revalidationQueue: queueName,
+    role: roleName,
+    serverFunction: serverName,
+    imageFunction: imageName,
+    revalidationFunction: revalidationName,
+    distributionComment,
+  } = names;
 
   await ensureBucket(ctx, assetsBucket);
   await ensureTagCacheTable(ctx, tableName);
@@ -539,8 +547,8 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
   const serverUrl = await ensureFunctionUrl(ctx, serverName);
   const imageUrl = await ensureFunctionUrl(ctx, imageName);
 
-  const s3OacId = await ensureOriginAccessControl(ctx, `${PREFIX}-admin-s3`, "s3");
-  const lambdaOacId = await ensureOriginAccessControl(ctx, `${PREFIX}-admin-lambda`, "lambda");
+  const s3OacId = await ensureOriginAccessControl(ctx, names.s3Oac, "s3");
+  const lambdaOacId = await ensureOriginAccessControl(ctx, names.lambdaOac, "lambda");
 
   const origins = buildOrigins(
     `${assetsBucket}.s3.${ctx.region}.amazonaws.com`,
@@ -550,7 +558,7 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
     lambdaOacId,
   );
 
-  const existing = await findDistribution(ctx);
+  const existing = await findDistribution(ctx, distributionComment);
   let distributionId = existing?.id;
   let distributionDomain = existing?.domainName;
 
@@ -560,7 +568,8 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
       const desired = buildDistributionConfig(
         output,
         origins,
-        existing.config.CallerReference ?? `${PREFIX}-admin-${Date.now()}`,
+        existing.config.CallerReference ?? `${ctx.appPrefix}-admin-${Date.now()}`,
+        distributionComment,
       );
       const mergedOrigins = (desired.Origins?.Items ?? []).map((origin) => ({
         ...existing.config.Origins?.Items?.find((prior) => prior.Id === origin.Id),
@@ -578,7 +587,7 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
           IfMatch: existing.eTag,
           DistributionConfig: {
             ...existing.config,
-            Comment: `${PREFIX}-admin`,
+            Comment: distributionComment,
             Enabled: true,
             HttpVersion: "http2and3",
             PriceClass: "PriceClass_100",
@@ -606,7 +615,8 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
         DistributionConfig: buildDistributionConfig(
           output,
           origins,
-          `${PREFIX}-admin-${Date.now()}`,
+          `${ctx.appPrefix}-admin-${Date.now()}`,
+          distributionComment,
         ),
       }),
     );
@@ -615,7 +625,7 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
   }
 
   if (distributionId) {
-    await putRolePolicy(ctx, roleName, `${PREFIX}-admin`, [
+    await putRolePolicy(ctx, roleName, distributionComment, [
       {
         Effect: "Allow",
         Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],

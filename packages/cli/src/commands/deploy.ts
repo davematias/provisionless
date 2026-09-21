@@ -11,8 +11,25 @@ export function registerDeployCommand(program: Command): void {
       "AWS region to deploy into",
       process.env.AWS_REGION ?? "us-east-1",
     )
+    .option("-p, --prefix <prefix>", "App prefix used to name resources (prompted when omitted)")
+    .option("--test-user-username <username>", "Test user username (prompted when omitted)")
+    .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--dry-run", "Report what would be created or updated without modifying AWS", false)
-    .action(async (options: { region: string; dryRun: boolean }) => {
-      await deploy({ region: options.region, dryRun: options.dryRun });
-    });
+    .action(
+      async (options: {
+        region: string;
+        prefix?: string;
+        testUserUsername?: string;
+        testUserPassword?: string;
+        dryRun: boolean;
+      }) => {
+        await deploy({
+          region: options.region,
+          prefix: options.prefix,
+          testUserUsername: options.testUserUsername,
+          testUserPassword: options.testUserPassword,
+          dryRun: options.dryRun,
+        });
+      },
+    );
 }

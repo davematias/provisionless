@@ -21,14 +21,10 @@ import {
   ensureLambdaRole,
   putRolePolicy,
 } from "../aws/lambda.ts";
+import { apiNames } from "../aws/names.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipFile } from "../util/zip.ts";
 import type { DeployContext } from "./context.ts";
-
-const FUNCTION_NAME = "provisionless-api";
-const ROLE_NAME = "provisionless-api-role";
-const API_NAME = "provisionless-api";
-const USERS_TABLE_NAME = "provisionless-users";
 
 async function bundleApi(repoRoot: string): Promise<Buffer> {
   const outfile = join(mkdtempSync(join(tmpdir(), "provisionless-api-")), "index.mjs");
@@ -40,6 +36,9 @@ async function bundleApi(repoRoot: string): Promise<Buffer> {
     format: "esm",
     outfile,
     logLevel: "silent",
+    alias: {
+      "@provisionless/core": join(repoRoot, "packages", "core", "src", "index.ts"),
+    },
     banner: {
       js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
     },
@@ -48,21 +47,23 @@ async function bundleApi(repoRoot: string): Promise<Buffer> {
 }
 
 async function findApiId(ctx: DeployContext): Promise<string | undefined> {
+  const { api } = apiNames(ctx.appPrefix);
   const result = await ctx.clients.apiGateway.send(new GetApisCommand({}));
-  return result.Items?.find((api) => api.Name === API_NAME)?.ApiId;
+  return result.Items?.find((item) => item.Name === api)?.ApiId;
 }
 
 export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Promise<string> {
+  const names = apiNames(ctx.appPrefix);
   let apiId = await findApiId(ctx);
 
   if (!apiId) {
     if (ctx.dryRun) {
-      ctx.log(`would create API Gateway HTTP API ${API_NAME}`);
+      ctx.log(`would create API Gateway HTTP API ${names.api}`);
       return `https://<api-id>.execute-api.${ctx.region}.amazonaws.com`;
     }
-    ctx.log(`creating API Gateway HTTP API ${API_NAME}`);
+    ctx.log(`creating API Gateway HTTP API ${names.api}`);
     const created = await ctx.clients.apiGateway.send(
-      new CreateApiCommand({ Name: API_NAME, ProtocolType: "HTTP" }),
+      new CreateApiCommand({ Name: names.api, ProtocolType: "HTTP" }),
     );
     apiId = created.ApiId;
   }
@@ -113,7 +114,7 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
 
   await addInvokePermission(
     ctx,
-    FUNCTION_NAME,
+    names.function,
     `apigateway-${apiId}`,
     "apigateway.amazonaws.com",
     `arn:aws:execute-api:${ctx.region}:${ctx.accountId}:${apiId}/*`,
@@ -123,12 +124,14 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
 }
 
 export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
+  const { usersTable } = apiNames(ctx.appPrefix);
+
   try {
     const existing = await ctx.clients.dynamodb.send(
-      new DescribeTableCommand({ TableName: USERS_TABLE_NAME }),
+      new DescribeTableCommand({ TableName: usersTable }),
     );
     if (existing.Table?.TableStatus === "ACTIVE") {
-      return USERS_TABLE_NAME;
+      return usersTable;
     }
   } catch (error) {
     if (!isAwsError(error, "ResourceNotFoundException")) {
@@ -137,14 +140,14 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
   }
 
   if (ctx.dryRun) {
-    ctx.log(`would create DynamoDB table ${USERS_TABLE_NAME}`);
-    return USERS_TABLE_NAME;
+    ctx.log(`would create DynamoDB table ${usersTable}`);
+    return usersTable;
   }
 
-  ctx.log(`creating DynamoDB table ${USERS_TABLE_NAME}`);
+  ctx.log(`creating DynamoDB table ${usersTable}`);
   await ctx.clients.dynamodb.send(
     new CreateTableCommand({
-      TableName: USERS_TABLE_NAME,
+      TableName: usersTable,
       AttributeDefinitions: [
         { AttributeName: "username", AttributeType: "S" },
         { AttributeName: "id", AttributeType: "S" },
@@ -163,23 +166,24 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = await ctx.clients.dynamodb.send(
-      new DescribeTableCommand({ TableName: USERS_TABLE_NAME }),
+      new DescribeTableCommand({ TableName: usersTable }),
     );
     if (result.Table?.TableStatus === "ACTIVE") {
-      return USERS_TABLE_NAME;
+      return usersTable;
     }
     await sleep(2000);
   }
-  throw new Error(`Timed out waiting for DynamoDB table ${USERS_TABLE_NAME}`);
+  throw new Error(`Timed out waiting for DynamoDB table ${usersTable}`);
 }
 
 export async function deployApi(ctx: DeployContext): Promise<string> {
+  const names = apiNames(ctx.appPrefix);
   ctx.log("bundling API Lambda");
   const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
   const tableName = await ensureUsersTable(ctx);
-  const roleArn = await ensureLambdaRole(ctx, ROLE_NAME);
+  const roleArn = await ensureLambdaRole(ctx, names.role);
 
-  await putRolePolicy(ctx, ROLE_NAME, "provisionless-api", [
+  await putRolePolicy(ctx, names.role, `${ctx.appPrefix}-api`, [
     {
       Effect: "Allow",
       Action: [
@@ -198,11 +202,11 @@ export async function deployApi(ctx: DeployContext): Promise<string> {
   ]);
 
   const functionArn = await deployFunction(ctx, {
-    name: FUNCTION_NAME,
+    name: names.function,
     roleArn,
     zip,
     handler: "index.handler",
-    description: "Provisionless API",
+    description: `Provisionless API (${ctx.appPrefix})`,
     timeout: 30,
     memorySize: 1024,
     env: { USERS_TABLE_NAME: tableName },

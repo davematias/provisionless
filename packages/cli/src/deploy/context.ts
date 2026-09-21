@@ -6,6 +6,7 @@ export interface DeployContext {
   accountId: string;
   dryRun: boolean;
   repoRoot: string;
+  appPrefix: string;
   log: Logger;
   clients: AwsClients;
 }
@@ -13,4 +14,7 @@ export interface DeployContext {
 export interface DeployOptions {
   region: string;
   dryRun: boolean;
+  prefix?: string;
+  testUserUsername?: string;
+  testUserPassword?: string;
 }
