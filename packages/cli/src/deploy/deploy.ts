@@ -9,6 +9,7 @@ import { findRepoRoot } from "../util/repo.ts";
 import { deployAdmin } from "./admin.ts";
 import { deployApi } from "./api.ts";
 import type { DeployContext, DeployOptions } from "./context.ts";
+import { deployMedia, resolveMediaBucket } from "./media.ts";
 import { seedTestUser, type TestUserCredentials } from "./seed.ts";
 
 export interface DeployResult {
@@ -32,6 +33,15 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       persist: !options.dryRun,
     });
 
+    const mediaBucket = await resolveMediaBucket({
+      repoRoot,
+      appPrefix,
+      name: options.mediaBucket,
+      ask: prompter.ask,
+      log,
+      persist: !options.dryRun,
+    });
+
     let accountId = "000000000000";
     if (!options.dryRun) {
       const identity = await clients.sts.send(new GetCallerIdentityCommand({}));
@@ -47,6 +57,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       dryRun: options.dryRun,
       repoRoot,
       appPrefix,
+      mediaBucket,
       log,
       clients,
     };
@@ -57,6 +68,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
         : `deploying app "${appPrefix}" to account ${accountId} in ${options.region}`,
     );
 
+    await deployMedia(ctx);
     const apiUrl = await deployApi(ctx);
     const admin = await deployAdmin(ctx);
 

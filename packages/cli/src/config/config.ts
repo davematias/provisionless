@@ -9,6 +9,7 @@ export const CONFIG_FILE = ".provisionless";
 
 export interface ProvisionlessConfig {
   appPrefix: string;
+  mediaBucket?: string;
   region?: string;
 }
 
@@ -30,6 +31,10 @@ export function loadConfig(repoRoot: string): ProvisionlessConfig | undefined {
 
 export function saveConfig(repoRoot: string, config: ProvisionlessConfig): void {
   writeFileSync(configPath(repoRoot), `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+export function updateConfig(repoRoot: string, patch: Partial<ProvisionlessConfig>): void {
+  saveConfig(repoRoot, { ...loadConfig(repoRoot), ...patch } as ProvisionlessConfig);
 }
 
 export interface ResolveAppPrefixOptions {
