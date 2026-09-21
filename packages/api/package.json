@@ -24,9 +24,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1135.0",
+    "@aws-sdk/lib-dynamodb": "3.1135.0",
     "hono": "4.13.8"
   },
   "devDependencies": {
-    "@hono/node-server": "2.1.1"
+    "@hono/node-server": "2.1.1",
+    "@types/node": "26.6.1"
   }
 }

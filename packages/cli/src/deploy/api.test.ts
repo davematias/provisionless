@@ -8,10 +8,11 @@ import {
   GetRoutesCommand,
   GetStagesCommand,
 } from "@aws-sdk/client-apigatewayv2";
+import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
-import { ensureHttpApi } from "./api.ts";
+import { ensureHttpApi, ensureUsersTable } from "./api.ts";
 import type { DeployContext } from "./context.ts";
 
 const FUNCTION_ARN = "arn:aws:lambda:us-east-1:111122223333:function:provisionless-api";
@@ -73,4 +74,62 @@ it("reuses an existing HTTP API instead of creating another", async () => {
   expect(commands.some((command) => command instanceof CreateIntegrationCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateRouteCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateStageCommand)).toBe(false);
+});
+
+interface TableInput {
+  KeySchema?: { AttributeName?: string; KeyType?: string }[];
+  GlobalSecondaryIndexes?: { IndexName?: string }[];
+}
+
+function createDynamoContext(send: (command: unknown) => Promise<unknown>): DeployContext {
+  return {
+    region: "us-east-1",
+    accountId: "111122223333",
+    dryRun: false,
+    repoRoot: ".",
+    log: () => undefined,
+    clients: { dynamodb: { send } } as unknown as AwsClients,
+  };
+}
+
+it("creates the users table with the username key and id index", async () => {
+  const commands: unknown[] = [];
+  let describeCalls = 0;
+  const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeTableCommand) {
+      describeCalls += 1;
+      if (describeCalls === 1) {
+        const error = new Error("missing");
+        error.name = "ResourceNotFoundException";
+        throw error;
+      }
+      return { Table: { TableStatus: "ACTIVE" } };
+    }
+    return {};
+  });
+
+  const tableName = await ensureUsersTable(ctx);
+
+  expect(tableName).toBe("provisionless-users");
+  const create = commands.find((command) => command instanceof CreateTableCommand) as
+    | { input: TableInput }
+    | undefined;
+  expect(create?.input.KeySchema).toEqual([{ AttributeName: "username", KeyType: "HASH" }]);
+  expect(create?.input.GlobalSecondaryIndexes?.[0]?.IndexName).toBe("id-index");
+});
+
+it("reuses an existing users table", async () => {
+  let created = false;
+  const ctx = createDynamoContext(async (command) => {
+    if (command instanceof CreateTableCommand) {
+      created = true;
+    }
+    return { Table: { TableStatus: "ACTIVE" } };
+  });
+
+  const tableName = await ensureUsersTable(ctx);
+
+  expect(tableName).toBe("provisionless-users");
+  expect(created).toBe(false);
 });
