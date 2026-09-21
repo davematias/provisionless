@@ -2,7 +2,7 @@ import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
 import { createAwsClients } from "../aws/clients.ts";
 import { apiNames } from "../aws/names.ts";
-import { resolveAppPrefix } from "../config/config.ts";
+import { resolveAppPrefix, resolveRegion } from "../config/config.ts";
 import { createLogger } from "../util/log.ts";
 import { createPrompter } from "../util/prompt.ts";
 import { findRepoRoot } from "../util/repo.ts";
@@ -20,11 +20,19 @@ export interface DeployResult {
 
 export async function deploy(options: DeployOptions): Promise<DeployResult> {
   const repoRoot = findRepoRoot(process.cwd());
-  const clients = createAwsClients(options.region);
   const log = createLogger();
   const prompter = createPrompter();
 
   try {
+    const region = await resolveRegion({
+      repoRoot,
+      region: options.region,
+      ask: prompter.ask,
+      log,
+      persist: !options.dryRun,
+    });
+    const clients = createAwsClients(region);
+
     const appPrefix = await resolveAppPrefix({
       repoRoot,
       prefix: options.prefix,
@@ -52,7 +60,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     }
 
     const ctx: DeployContext = {
-      region: options.region,
+      region,
       accountId,
       dryRun: options.dryRun,
       repoRoot,
@@ -64,8 +72,8 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
 
     log(
       options.dryRun
-        ? `dry run for app "${appPrefix}": no AWS resources will be changed`
-        : `deploying app "${appPrefix}" to account ${accountId} in ${options.region}`,
+        ? `dry run for app "${appPrefix}" in ${region}: no AWS resources will be changed`
+        : `deploying app "${appPrefix}" to account ${accountId} in ${region}`,
     );
 
     await deployMedia(ctx);
@@ -79,7 +87,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     if (!options.dryRun) {
       testUser = await seedTestUser({
         tableName: apiNames(appPrefix).usersTable,
-        region: options.region,
+        region,
         ask: prompter.ask,
         log,
         username: options.testUserUsername,

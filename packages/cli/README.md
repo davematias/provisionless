@@ -19,6 +19,34 @@ Options:
   credentials non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
 
+### Undeploy
+
+Remove everything a deployment created:
+
+```bash
+npx provisionless undeploy
+```
+
+The CLI reads the app prefix from `.provisionless` (or `--prefix`) and asks whether to keep data
+(S3 objects and DynamoDB tables) before deleting anything. Use `--keep-data` / `--no-keep-data` to
+answer up front, `--yes` to skip the confirmation, and `--dry-run` to see what would be removed.
+
+### Help
+
+```bash
+npx provisionless help
+npx provisionless help deploy
+npx provisionless help --json
+```
+
+Every command documents its purpose, options, examples, prerequisites, and the AWS resources it
+manages. `--json` prints the same information machine-readably for agents and tooling.
+
+### Region
+
+The region comes from `--region`, otherwise from the saved `.provisionless` config, otherwise
+`AWS_REGION`, otherwise an interactive prompt. The resolved region is saved for later runs.
+
 ### App prefix and saved config
 
 Deployments are namespaced by an app prefix. When `--prefix` is not passed, the CLI prompts for one

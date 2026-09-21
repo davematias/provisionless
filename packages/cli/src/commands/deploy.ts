@@ -1,21 +1,20 @@
 import type { Command } from "commander";
 
+import { formatCommandHelp } from "../cli/help.ts";
+import { COMMAND_HELP } from "../cli/metadata.ts";
 import { deploy } from "../deploy/deploy.ts";
 
 export function registerDeployCommand(program: Command): void {
   program
     .command("deploy")
-    .description("Provision the Provisionless API and admin website on AWS.")
-    .option(
-      "-r, --region <region>",
-      "AWS region to deploy into",
-      process.env.AWS_REGION ?? "us-east-1",
-    )
+    .description(COMMAND_HELP.deploy?.summary ?? "Provision the Provisionless stack on AWS.")
+    .option("-r, --region <region>", "AWS region (prompted when omitted)")
     .option("-p, --prefix <prefix>", "App prefix used to name resources (prompted when omitted)")
     .option("--media-bucket <name>", "Media bucket name (prompted when omitted)")
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--dry-run", "Report what would be created or updated without modifying AWS", false)
+    .addHelpText("after", formatCommandHelp(COMMAND_HELP.deploy))
     .action(
       async (options: {
         region: string;

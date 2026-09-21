@@ -37,6 +37,29 @@ export function updateConfig(repoRoot: string, patch: Partial<ProvisionlessConfi
   saveConfig(repoRoot, { ...loadConfig(repoRoot), ...patch } as ProvisionlessConfig);
 }
 
+export interface ResolveRegionOptions {
+  repoRoot: string;
+  region?: string;
+  ask: Ask;
+  log: Logger;
+  persist: boolean;
+}
+
+export async function resolveRegion(options: ResolveRegionOptions): Promise<string> {
+  const existing = loadConfig(options.repoRoot);
+
+  let region = options.region ?? existing?.region ?? process.env.AWS_REGION;
+  if (!region) {
+    const answer = (await options.ask("AWS region [us-east-1]: ")).trim();
+    region = answer || "us-east-1";
+  }
+
+  if (options.persist) {
+    updateConfig(options.repoRoot, { region });
+  }
+  return region;
+}
+
 export interface ResolveAppPrefixOptions {
   repoRoot: string;
   prefix?: string;

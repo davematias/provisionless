@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { loadConfig, resolveAppPrefix, saveConfig } from "./config.ts";
+import { loadConfig, resolveAppPrefix, resolveRegion, saveConfig } from "./config.ts";
 
 function tempRepo(): string {
   return mkdtempSync(join(tmpdir(), "provisionless-config-"));
@@ -78,6 +78,59 @@ it("rejects an invalid prefix", async () => {
       persist: true,
     }),
   ).rejects.toThrow();
+});
+
+it("uses the --region flag and persists it", async () => {
+  const repo = tempRepo();
+
+  const region = await resolveRegion({
+    repoRoot: repo,
+    region: "eu-west-1",
+    ask: async () => "",
+    log: noop,
+    persist: true,
+  });
+
+  expect(region).toBe("eu-west-1");
+  expect(loadConfig(repo)?.region).toBe("eu-west-1");
+});
+
+it("uses the saved region without prompting", async () => {
+  const repo = tempRepo();
+  saveConfig(repo, { appPrefix: "demo", region: "ap-southeast-2" });
+  let promptCount = 0;
+
+  const region = await resolveRegion({
+    repoRoot: repo,
+    ask: async () => {
+      promptCount += 1;
+      return "";
+    },
+    log: noop,
+    persist: true,
+  });
+
+  expect(region).toBe("ap-southeast-2");
+  expect(promptCount).toBe(0);
+});
+
+it("prompts for a region and defaults to us-east-1", async () => {
+  const previous = process.env.AWS_REGION;
+  delete process.env.AWS_REGION;
+
+  try {
+    const region = await resolveRegion({
+      repoRoot: tempRepo(),
+      ask: async () => "",
+      log: noop,
+      persist: true,
+    });
+    expect(region).toBe("us-east-1");
+  } finally {
+    if (previous !== undefined) {
+      process.env.AWS_REGION = previous;
+    }
+  }
 });
 
 it("does not persist during a dry run", async () => {
