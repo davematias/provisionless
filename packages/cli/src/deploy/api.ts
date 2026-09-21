@@ -199,6 +199,16 @@ export async function deployApi(ctx: DeployContext): Promise<string> {
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${tableName}/index/*`,
       ],
     },
+    {
+      Effect: "Allow",
+      Action: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      Resource: `arn:aws:s3:::${ctx.mediaBucket}/*`,
+    },
+    {
+      Effect: "Allow",
+      Action: ["s3:ListBucket"],
+      Resource: `arn:aws:s3:::${ctx.mediaBucket}`,
+    },
   ]);
 
   const functionArn = await deployFunction(ctx, {
@@ -209,7 +219,7 @@ export async function deployApi(ctx: DeployContext): Promise<string> {
     description: `Provisionless API (${ctx.appPrefix})`,
     timeout: 30,
     memorySize: 1024,
-    env: { USERS_TABLE_NAME: tableName },
+    env: { USERS_TABLE_NAME: tableName, MEDIA_BUCKET_NAME: ctx.mediaBucket },
   });
   const url = await ensureHttpApi(ctx, functionArn);
   ctx.log(`API deployed: ${url}`);

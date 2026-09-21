@@ -7,6 +7,7 @@ export interface DeployContext {
   dryRun: boolean;
   repoRoot: string;
   appPrefix: string;
+  mediaBucket: string;
   log: Logger;
   clients: AwsClients;
 }
@@ -15,6 +16,7 @@ export interface DeployOptions {
   region: string;
   dryRun: boolean;
   prefix?: string;
+  mediaBucket?: string;
   testUserUsername?: string;
   testUserPassword?: string;
 }

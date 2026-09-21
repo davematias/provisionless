@@ -45,3 +45,15 @@ export function adminNames(appPrefix: string, accountId: string): AdminResourceN
 export function isValidAppPrefix(prefix: string): boolean {
   return /^[a-z][a-z0-9-]{1,28}$/.test(prefix);
 }
+
+export function mediaBucketName(appPrefix: string, name: string): string {
+  const trimmed = name.trim().toLowerCase();
+  if (trimmed.startsWith(`${appPrefix}-`)) {
+    return trimmed;
+  }
+  return `${appPrefix}-${trimmed}`;
+}
+
+export function isValidBucketName(bucket: string): boolean {
+  return /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket) && !bucket.includes("..");
+}

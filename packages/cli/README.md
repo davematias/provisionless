@@ -14,6 +14,7 @@ Options:
 
 - `--region <region>` — AWS region to deploy into (defaults to `AWS_REGION` or `us-east-1`).
 - `--prefix <prefix>` — app prefix used to name resources; prompted when omitted.
+- `--media-bucket <name>` — media bucket name (prompted when omitted); the app prefix is prepended.
 - `--test-user-username <username>` / `--test-user-password <password>` — supply the test user's
   credentials non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
@@ -24,6 +25,13 @@ Deployments are namespaced by an app prefix. When `--prefix` is not passed, the 
 and saves it (with other deployment settings) to a local `.provisionless` file in the repository
 root. On later runs it offers to reuse the saved prefix. `.provisionless` is gitignored and must
 never be committed.
+
+### Media bucket
+
+The CLI provisions an S3 bucket for uploaded media (images, video, and so on) in the deployment's
+region. It prompts for the bucket name and prepends the app prefix (for example, prefix `demo` and
+name `media` create `demo-media`). The resolved name is saved in `.provisionless` and passed to the
+deployed API as `MEDIA_BUCKET_NAME`. Re-running deploy reuses the existing bucket.
 
 ### Test user
 
