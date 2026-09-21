@@ -1,0 +1,42 @@
+{
+  "name": "@provisionless/core",
+  "version": "0.0.0",
+  "description": "Shared Provisionless domain logic (users, password hashing, DynamoDB access).",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davematias/provisionless.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "oxlint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1135.0",
+    "@aws-sdk/lib-dynamodb": "3.1135.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.1"
+  }
+}

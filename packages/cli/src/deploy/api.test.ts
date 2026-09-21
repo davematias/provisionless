@@ -28,6 +28,7 @@ function createContext(apiGatewaySend: (command: unknown) => Promise<unknown>): 
     accountId: "111122223333",
     dryRun: false,
     repoRoot: ".",
+    appPrefix: "provisionless",
     log: () => undefined,
     clients,
   };
@@ -87,6 +88,7 @@ function createDynamoContext(send: (command: unknown) => Promise<unknown>): Depl
     accountId: "111122223333",
     dryRun: false,
     repoRoot: ".",
+    appPrefix: "provisionless",
     log: () => undefined,
     clients: { dynamodb: { send } } as unknown as AwsClients,
   };

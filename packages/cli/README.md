@@ -13,7 +13,22 @@ npx provisionless deploy
 Options:
 
 - `--region <region>` — AWS region to deploy into (defaults to `AWS_REGION` or `us-east-1`).
+- `--prefix <prefix>` — app prefix used to name resources; prompted when omitted.
+- `--test-user-username <username>` / `--test-user-password <password>` — supply the test user's
+  credentials non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
+
+### App prefix and saved config
+
+Deployments are namespaced by an app prefix. When `--prefix` is not passed, the CLI prompts for one
+and saves it (with other deployment settings) to a local `.provisionless` file in the repository
+root. On later runs it offers to reuse the saved prefix. `.provisionless` is gitignored and must
+never be committed.
+
+### Test user
+
+After a successful deploy the CLI asks for a username and password and seeds exactly one admin test
+user into the deployed users table, then prints the credentials so you can log in immediately.
 
 `deploy` bundles the API, builds the admin website with
 [OpenNext](https://opennext.js.org/aws), and provisions:
