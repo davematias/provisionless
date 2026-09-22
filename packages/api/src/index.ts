@@ -1,5 +1,5 @@
-export { app } from "./app.ts";
-export type { AppType } from "./app.ts";
+export { createApp } from "./app.ts";
+export type { AppDependencies, AppType } from "./app.ts";
 export {
   createUserRepository,
   hashPassword,

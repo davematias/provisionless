@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -14,6 +15,7 @@ export interface ProvisionlessConfig {
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
+  jwtSecret?: string;
 }
 
 export function configPath(repoRoot: string): string {
@@ -61,6 +63,19 @@ export async function resolveRegion(options: ResolveRegionOptions): Promise<stri
     updateConfig(options.repoRoot, { region });
   }
   return region;
+}
+
+export function resolveJwtSecret(repoRoot: string, persist: boolean): string {
+  const existing = loadConfig(repoRoot);
+  if (existing?.jwtSecret) {
+    return existing.jwtSecret;
+  }
+
+  const secret = randomBytes(32).toString("base64url");
+  if (persist) {
+    updateConfig(repoRoot, { jwtSecret: secret });
+  }
+  return secret;
 }
 
 export interface DomainConfig {

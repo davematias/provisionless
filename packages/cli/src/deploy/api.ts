@@ -176,7 +176,7 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
   throw new Error(`Timed out waiting for DynamoDB table ${usersTable}`);
 }
 
-export async function deployApi(ctx: DeployContext): Promise<string> {
+export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<string> {
   const names = apiNames(ctx.appPrefix);
   ctx.log("bundling API Lambda");
   const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
@@ -219,7 +219,11 @@ export async function deployApi(ctx: DeployContext): Promise<string> {
     description: `Provisionless API (${ctx.appPrefix})`,
     timeout: 30,
     memorySize: 1024,
-    env: { USERS_TABLE_NAME: tableName, MEDIA_BUCKET_NAME: ctx.mediaBucket },
+    env: {
+      USERS_TABLE_NAME: tableName,
+      MEDIA_BUCKET_NAME: ctx.mediaBucket,
+      JWT_SECRET: jwtSecret,
+    },
   });
   const url = await ensureHttpApi(ctx, functionArn);
   ctx.log(`API deployed: ${url}`);

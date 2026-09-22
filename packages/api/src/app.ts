@@ -1,7 +1,16 @@
 import { Hono } from "hono";
 
-export const app = new Hono();
+import { registerAuthRoutes, type AuthDependencies } from "./auth/routes.ts";
 
-app.get("/health", (c) => c.json({ status: "ok" }));
+export type AppDependencies = AuthDependencies;
 
-export type AppType = typeof app;
+export function createApp(deps: AppDependencies): Hono {
+  const app = new Hono();
+
+  app.get("/health", (c) => c.json({ status: "ok" }));
+  registerAuthRoutes(app, deps);
+
+  return app;
+}
+
+export type AppType = ReturnType<typeof createApp>;
