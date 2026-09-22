@@ -54,9 +54,11 @@ package `tsconfig.json` extends the root `tsconfig.base.json`.
 - Run unit tests across all packages: `npm test`.
 - Run one package's tests: `npm test --workspace=@provisionless/api`.
 - **Integration tests are required** for any change that touches an external system (databases,
-  cloud services, the network). Their dedicated layout and command will be established by the first
-  package that needs them, so they are not yet wired up here; do not merge external-system code
-  without them.
+  cloud services, the network). They live next to the code and are named `*.integration.test.ts`,
+  are excluded from the unit-test run, and run against an emulated service (for example the
+  in-process `dynalite` DynamoDB emulator) so they need no external credentials.
+- Run integration tests across all packages: `npm run test:integration`. They are not part of
+  `npm run check`; CI runs them in a separate job.
 
 ## Quality gates
 
@@ -79,6 +81,7 @@ to `main`. Reproduce the CI run locally with `npm run check && npm run build`.
 npm install        # install all workspace dependencies
 npm run build      # build every package
 npm test           # run unit tests across packages
+npm run test:integration  # run integration tests (emulated services)
 npm run lint          # lint every package (oxlint)
 npm run typecheck     # typecheck every package (TypeScript)
 npm run format        # format the repo (oxfmt)
