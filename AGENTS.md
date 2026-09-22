@@ -75,6 +75,11 @@ A change is not complete until all of these pass from the repository root:
 `.github/workflows/ci.yml` runs these gates plus `npm run build` on every pull request and on pushes
 to `main`. Reproduce the CI run locally with `npm run check && npm run build`.
 
+## Finishing work
+
+Do not leave finished work uncommitted: commit it on a feature branch, push the branch, and open a
+pull request against `main`.
+
 ## Common commands
 
 ```bash
