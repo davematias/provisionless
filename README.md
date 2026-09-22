@@ -38,9 +38,9 @@ packages. Run a script for a single package with `npm run <script> --workspace=<
 
 ## Continuous integration
 
-GitHub Actions runs typecheck, lint, unit tests, the formatting check, and the build on every pull
-request and on pushes to `main` (see `.github/workflows/ci.yml`). Run the same checks locally with
-`npm run check && npm run build`.
+GitHub Actions runs typecheck, lint, unit tests, integration tests, the formatting check, and the
+build on every pull request and on pushes to `main` (see `.github/workflows/ci.yml`). Run the same
+checks locally with `npm run check && npm run test:integration && npm run build`.
 
 ## License
 
