@@ -1,8 +1,10 @@
+import { ACMClient } from "@aws-sdk/client-acm";
 import { ApiGatewayV2Client } from "@aws-sdk/client-apigatewayv2";
 import { CloudFrontClient } from "@aws-sdk/client-cloudfront";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { IAMClient } from "@aws-sdk/client-iam";
 import { LambdaClient } from "@aws-sdk/client-lambda";
+import { Route53Client } from "@aws-sdk/client-route-53";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { STSClient } from "@aws-sdk/client-sts";
@@ -16,6 +18,9 @@ export interface AwsClients {
   sqs: SQSClient;
   dynamodb: DynamoDBClient;
   cloudfront: CloudFrontClient;
+  acm: ACMClient;
+  acmUsEast1: ACMClient;
+  route53: Route53Client;
 }
 
 export function createAwsClients(region: string): AwsClients {
@@ -28,5 +33,8 @@ export function createAwsClients(region: string): AwsClients {
     sqs: new SQSClient({ region }),
     dynamodb: new DynamoDBClient({ region }),
     cloudfront: new CloudFrontClient({ region: "us-east-1" }),
+    acm: new ACMClient({ region }),
+    acmUsEast1: new ACMClient({ region: "us-east-1" }),
+    route53: new Route53Client({ region: "us-east-1" }),
   };
 }

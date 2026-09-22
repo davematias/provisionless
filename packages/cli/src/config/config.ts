@@ -15,6 +15,8 @@ export interface ProvisionlessConfig {
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
+  adminCertificateArn?: string;
+  apiCertificateArn?: string;
   jwtSecret?: string;
 }
 

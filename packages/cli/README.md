@@ -55,11 +55,19 @@ The region comes from `--region`, otherwise from the saved `.provisionless` conf
 
 ### Custom domains
 
-Set `--admin-domain` and/or `--api-domain` to serve the admin site and API on your own domains
-(the certificate and DNS wiring are handled by later deploy steps). If a `--hosted-zone` is given,
-DNS records are created in Route 53 automatically; otherwise the CLI prints the records to add.
-The domains and hosted zone are saved in `.provisionless` and offered for reuse. Leave the prompts
-blank to deploy without custom domains.
+Set `--admin-domain` and/or `--api-domain` to serve the admin site and API on your own domains. If a
+`--hosted-zone` is given, DNS records are created in Route 53 automatically; otherwise the CLI prints
+the records to add. The domains and hosted zone are saved in `.provisionless` and offered for reuse.
+Leave the prompts blank to deploy without custom domains.
+
+### Certificates
+
+For each configured domain the CLI requests an ACM certificate (or reuses an existing one for the
+same domain): the admin certificate is created in `us-east-1`, which CloudFront requires, and the API
+certificate in the deployment region. When a `--hosted-zone` is configured, the CLI creates the DNS
+validation records in Route 53 and waits for the certificate to be issued. Without one, it prints the
+CNAME records to add and tells you how to continue once they are validated. Certificate ARNs are
+saved in `.provisionless` so later deploy steps can reference them.
 
 Pass `--no-domains` to skip custom-domain configuration entirely, so a deploy runs unattended without
 prompting. Saved domains are ignored for that run but are left in `.provisionless`, so a later deploy
