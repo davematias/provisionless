@@ -29,6 +29,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "oxlint .",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -37,6 +38,7 @@
     "@aws-sdk/lib-dynamodb": "3.1135.0"
   },
   "devDependencies": {
-    "@types/node": "26.6.1"
+    "@types/node": "26.6.1",
+    "dynalite": "4.0.0"
   }
 }
