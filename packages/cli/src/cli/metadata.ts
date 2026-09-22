@@ -16,11 +16,13 @@ export const COMMAND_HELP = {
       "provisionless deploy",
       "provisionless deploy --region eu-west-1 --prefix acme",
       "provisionless deploy --prefix acme --media-bucket uploads",
+      "provisionless deploy --admin-domain admin.example.com --api-domain api.example.com --hosted-zone Z0123456789",
       "provisionless deploy --dry-run",
     ],
     prerequisites: [
       "AWS credentials allowed to manage IAM, Lambda, API Gateway, S3, DynamoDB, SQS, and CloudFront",
       "Run from inside the Provisionless repository",
+      "For custom domains, a Route 53 hosted zone (to create DNS records automatically) or the ability to add DNS records yourself",
     ],
     resources: [
       "API: IAM role, Lambda function, API Gateway HTTP API, and a DynamoDB users table",
