@@ -63,6 +63,7 @@ export class UserRepository {
       enabled: input.enabled ?? true,
       createdAt: now,
       updatedAt: now,
+      passwordChangedAt: now,
     };
     if (input.pictureUrl !== undefined) {
       user.pictureUrl = input.pictureUrl;
@@ -112,13 +113,17 @@ export class UserRepository {
   }
 
   async updateUser(username: string, changes: UpdateUserInput): Promise<User> {
-    const fields: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const fields: Record<string, unknown> = { updatedAt: now };
     if (changes.firstName !== undefined) fields.firstName = changes.firstName;
     if (changes.lastName !== undefined) fields.lastName = changes.lastName;
     if (changes.pictureUrl !== undefined) fields.pictureUrl = changes.pictureUrl;
     if (changes.isAdmin !== undefined) fields.isAdmin = changes.isAdmin;
     if (changes.enabled !== undefined) fields.enabled = changes.enabled;
-    if (changes.password !== undefined) fields.passwordHash = await hashPassword(changes.password);
+    if (changes.password !== undefined) {
+      fields.passwordHash = await hashPassword(changes.password);
+      fields.passwordChangedAt = now;
+    }
 
     const names: Record<string, string> = {};
     const values: Record<string, unknown> = {};

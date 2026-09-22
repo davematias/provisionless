@@ -115,3 +115,14 @@ it("updates a user and bumps updatedAt", async () => {
   expect(updated.enabled).toBe(false);
   expect((updated.updatedAt ?? "") >= (before?.updatedAt ?? "")).toBe(true);
 });
+
+it("changes passwordChangedAt only when the password changes", async () => {
+  const before = await repository.getUser("ada");
+
+  const profileUpdate = await repository.updateUser("ada", { firstName: "Ada" });
+  expect(profileUpdate.passwordChangedAt).toBe(before?.passwordChangedAt);
+
+  const passwordUpdate = await repository.updateUser("ada", { password: "new-lovelace" });
+  expect((passwordUpdate.passwordChangedAt ?? "") > (before?.passwordChangedAt ?? "")).toBe(true);
+  expect(await verifyPassword("new-lovelace", passwordUpdate.passwordHash)).toBe(true);
+});

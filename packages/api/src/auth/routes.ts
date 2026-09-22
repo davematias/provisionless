@@ -1,15 +1,19 @@
-import { toPublicUser, verifyPassword, type User } from "@provisionless/core";
+import { toPublicUser, verifyPassword } from "@provisionless/core";
 import type { Hono } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, setCookie } from "hono/cookie";
 
-import { signSession, verifySession } from "./jwt.ts";
+import { signSession } from "./jwt.ts";
+import { requireAuth } from "./middleware.ts";
+import {
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+  type AppEnv,
+  type SessionDependencies,
+} from "./session.ts";
 
-export const SESSION_COOKIE = "provisionless_session";
-export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "./session.ts";
 
-export interface AuthDependencies {
-  users: { getUser(username: string): Promise<User | undefined> };
-  jwtSecret: string;
+export interface AuthDependencies extends SessionDependencies {
   secureCookies?: boolean;
 }
 
@@ -34,7 +38,7 @@ function extractCredentials(body: unknown): { username: string; password: string
   return { username: username.trim(), password };
 }
 
-export function registerAuthRoutes(app: Hono, deps: AuthDependencies): void {
+export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): void {
   const secure = deps.secureCookies ?? true;
 
   app.post("/auth/login", async (c) => {
@@ -52,7 +56,11 @@ export function registerAuthRoutes(app: Hono, deps: AuthDependencies): void {
       return c.json({ error: "Invalid username or password" }, 401);
     }
 
-    const token = await signSession(user.username, deps.jwtSecret, SESSION_TTL_SECONDS);
+    const token = await signSession(
+      { username: user.username, passwordChangedAt: user.passwordChangedAt },
+      deps.jwtSecret,
+      SESSION_TTL_SECONDS,
+    );
     setCookie(c, SESSION_COOKIE, token, cookieOptions(secure));
     return c.json({ user: toPublicUser(user) });
   });
@@ -62,15 +70,13 @@ export function registerAuthRoutes(app: Hono, deps: AuthDependencies): void {
     return c.json({ ok: true });
   });
 
-  app.get("/auth/me", async (c) => {
-    const token = getCookie(c, SESSION_COOKIE);
-    const session = token ? await verifySession(token, deps.jwtSecret) : undefined;
-    const user = session ? await deps.users.getUser(session.username) : undefined;
-    if (!session || !user || !user.enabled) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const refreshed = await signSession(user.username, deps.jwtSecret, SESSION_TTL_SECONDS);
+  app.get("/auth/me", requireAuth(deps), async (c) => {
+    const user = c.get("user");
+    const refreshed = await signSession(
+      { username: user.username, passwordChangedAt: user.passwordChangedAt },
+      deps.jwtSecret,
+      SESSION_TTL_SECONDS,
+    );
     setCookie(c, SESSION_COOKIE, refreshed, cookieOptions(secure));
     return c.json({ user: toPublicUser(user) });
   });

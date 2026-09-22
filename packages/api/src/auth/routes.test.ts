@@ -1,6 +1,6 @@
 import { hashPassword, type User } from "@provisionless/core";
 import type { Hono } from "hono";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it } from "vitest";
 
 import { createApp } from "../app.ts";
 import { SESSION_COOKIE } from "./routes.ts";
@@ -17,6 +17,7 @@ beforeAll(async () => {
     enabled: true,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    passwordChangedAt: "2026-01-01T00:00:00.000Z",
     passwordHash: await hashPassword("lovelace"),
   };
   active = { ...base, username: "ada" };
@@ -26,6 +27,11 @@ beforeAll(async () => {
     username: "disabled",
     enabled: false,
   };
+});
+
+beforeEach(() => {
+  active.enabled = true;
+  active.passwordChangedAt = "2026-01-01T00:00:00.000Z";
 });
 
 function appWith(user: User | undefined): Hono {
@@ -58,6 +64,7 @@ it("logs in with valid credentials and sets a session cookie", async () => {
   const body = (await response.json()) as { user: Record<string, unknown> };
   expect(body.user.username).toBe("ada");
   expect(body.user).not.toHaveProperty("passwordHash");
+  expect(body.user).not.toHaveProperty("passwordChangedAt");
 
   const cookie = response.headers.get("set-cookie") ?? "";
   expect(cookie).toContain(SESSION_COOKIE);
@@ -108,6 +115,40 @@ it("rejects /auth/me with a tampered token", async () => {
     headers: { cookie: `${SESSION_COOKIE}=not-a-real-token` },
   });
   expect(response.status).toBe(401);
+});
+
+it("rejects a session for a user that has since been disabled", async () => {
+  const app = appWith(active);
+  const loginResponse = await login(app, { username: "ada", password: "lovelace" });
+
+  active.enabled = false;
+
+  const response = await app.request("/auth/me", {
+    headers: { cookie: sessionCookie(loginResponse) },
+  });
+  expect(response.status).toBe(401);
+});
+
+it("rejects a session issued before the password changed", async () => {
+  const app = appWith(active);
+  const loginResponse = await login(app, { username: "ada", password: "lovelace" });
+
+  active.passwordChangedAt = "2026-06-01T00:00:00.000Z";
+
+  const response = await app.request("/auth/me", {
+    headers: { cookie: sessionCookie(loginResponse) },
+  });
+  expect(response.status).toBe(401);
+});
+
+it("keeps public routes accessible without a session", async () => {
+  const app = appWith(active);
+
+  const health = await app.request("/health");
+  expect(health.status).toBe(200);
+
+  const noCredentials = await login(app, {});
+  expect(noCredentials.status).toBe(400);
 });
 
 it("logs out by clearing the cookie", async () => {
