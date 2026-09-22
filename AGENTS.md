@@ -70,6 +70,9 @@ A change is not complete until all of these pass from the repository root:
 `npm run check` runs lint, typecheck, and test together via Turborepo, then `format:check`. Use
 `npm run format` to apply formatting fixes.
 
+`.github/workflows/ci.yml` runs these gates plus `npm run build` on every pull request and on pushes
+to `main`. Reproduce the CI run locally with `npm run check && npm run build`.
+
 ## Common commands
 
 ```bash

@@ -36,6 +36,12 @@ Tasks are orchestrated with [Turborepo](turbo.json); each command above fans out
 packages. Run a script for a single package with `npm run <script> --workspace=<package-name>`, e.g.
 `npm run build --workspace=@provisionless/api`.
 
+## Continuous integration
+
+GitHub Actions runs typecheck, lint, unit tests, the formatting check, and the build on every pull
+request and on pushes to `main` (see `.github/workflows/ci.yml`). Run the same checks locally with
+`npm run check && npm run build`.
+
 ## License
 
 Copyright (C) 2026 David Matias. Licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). You are free to use, modify, and self-host it, including commercially. If you run a modified version as a network service, you must release your source under the same license.
