@@ -23,6 +23,7 @@ export interface DeployOptions {
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
+  noDomains?: boolean;
   testUserUsername?: string;
   testUserPassword?: string;
 }

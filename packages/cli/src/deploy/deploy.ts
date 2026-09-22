@@ -55,6 +55,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       adminDomain: options.adminDomain,
       apiDomain: options.apiDomain,
       hostedZone: options.hostedZone,
+      noDomains: options.noDomains,
       ask: prompter.ask,
       log,
       persist: !options.dryRun,

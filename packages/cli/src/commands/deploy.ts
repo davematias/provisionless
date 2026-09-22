@@ -14,6 +14,7 @@ export function registerDeployCommand(program: Command): void {
     .option("--admin-domain <domain>", "Custom domain for the admin site (prompted when omitted)")
     .option("--api-domain <domain>", "Custom domain for the API (prompted when omitted)")
     .option("--hosted-zone <id-or-name>", "Route 53 hosted zone for automatic DNS records")
+    .option("--no-domains", "Skip custom domain configuration and deploy without domains")
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--dry-run", "Report what would be created or updated without modifying AWS", false)
@@ -26,6 +27,7 @@ export function registerDeployCommand(program: Command): void {
         adminDomain?: string;
         apiDomain?: string;
         hostedZone?: string;
+        domains: boolean;
         testUserUsername?: string;
         testUserPassword?: string;
         dryRun: boolean;
@@ -37,6 +39,7 @@ export function registerDeployCommand(program: Command): void {
           adminDomain: options.adminDomain,
           apiDomain: options.apiDomain,
           hostedZone: options.hostedZone,
+          noDomains: options.domains === false,
           testUserUsername: options.testUserUsername,
           testUserPassword: options.testUserPassword,
           dryRun: options.dryRun,

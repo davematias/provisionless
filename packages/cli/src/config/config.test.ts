@@ -126,6 +126,44 @@ it("allows deploying without custom domains", async () => {
   expect(domains).toEqual({ adminDomain: undefined, apiDomain: undefined, hostedZone: undefined });
 });
 
+it("skips domain prompts entirely when noDomains is set", async () => {
+  const repo = tempRepo();
+  saveConfig(repo, {
+    appPrefix: "demo",
+    adminDomain: "admin.example.com",
+    apiDomain: "api.example.com",
+  });
+  const asked: string[] = [];
+
+  const domains = await resolveDomains({
+    repoRoot: repo,
+    noDomains: true,
+    ask: async (question) => {
+      asked.push(question);
+      return "";
+    },
+    log: noop,
+    persist: true,
+  });
+
+  expect(domains).toEqual({});
+  expect(asked).toEqual([]);
+  expect(loadConfig(repo)?.adminDomain).toBe("admin.example.com");
+});
+
+it("rejects combining noDomains with explicit domains", async () => {
+  await expect(
+    resolveDomains({
+      repoRoot: tempRepo(),
+      noDomains: true,
+      adminDomain: "admin.example.com",
+      ask: async () => "",
+      log: noop,
+      persist: true,
+    }),
+  ).rejects.toThrow();
+});
+
 it("rejects an invalid domain", async () => {
   await expect(
     resolveDomains({

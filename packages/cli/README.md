@@ -19,6 +19,8 @@ Options:
   (prompted when omitted; leave blank to deploy without a custom domain).
 - `--hosted-zone <id-or-name>` — Route 53 hosted zone used to create DNS records automatically;
   without it the CLI prints the records to add yourself.
+- `--no-domains` — skip custom-domain configuration entirely and deploy without domains; useful for
+  non-interactive runs (scripts and CI) when you do not want custom domains.
 - `--test-user-username <username>` / `--test-user-password <password>` — supply the test user's
   credentials non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
@@ -58,6 +60,10 @@ Set `--admin-domain` and/or `--api-domain` to serve the admin site and API on yo
 DNS records are created in Route 53 automatically; otherwise the CLI prints the records to add.
 The domains and hosted zone are saved in `.provisionless` and offered for reuse. Leave the prompts
 blank to deploy without custom domains.
+
+Pass `--no-domains` to skip custom-domain configuration entirely, so a deploy runs unattended without
+prompting. Saved domains are ignored for that run but are left in `.provisionless`, so a later deploy
+without the flag can still reuse them.
 
 ### App prefix and saved config
 

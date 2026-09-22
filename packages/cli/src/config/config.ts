@@ -91,12 +91,27 @@ export interface ResolveDomainsOptions {
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
+  noDomains?: boolean;
   ask: Ask;
   log: Logger;
   persist: boolean;
 }
 
 export async function resolveDomains(options: ResolveDomainsOptions): Promise<DomainConfig> {
+  if (options.noDomains) {
+    if (
+      options.adminDomain !== undefined ||
+      options.apiDomain !== undefined ||
+      options.hostedZone !== undefined
+    ) {
+      throw new Error(
+        "Cannot combine --no-domains with --admin-domain, --api-domain, or --hosted-zone.",
+      );
+    }
+    options.log("skipping custom domain configuration");
+    return {};
+  }
+
   const existing = loadConfig(options.repoRoot);
   const hasFlag =
     options.adminDomain !== undefined ||
