@@ -17,6 +17,7 @@ export const COMMAND_HELP = {
       "provisionless deploy --region eu-west-1 --prefix acme",
       "provisionless deploy --prefix acme --media-bucket uploads",
       "provisionless deploy --admin-domain admin.example.com --api-domain api.example.com --hosted-zone Z0123456789",
+      "provisionless deploy --no-domains",
       "provisionless deploy --dry-run",
     ],
     prerequisites: [
