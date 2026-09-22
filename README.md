@@ -36,6 +36,23 @@ Tasks are orchestrated with [Turborepo](turbo.json); each command above fans out
 packages. Run a script for a single package with `npm run <script> --workspace=<package-name>`, e.g.
 `npm run build --workspace=@provisionless/api`.
 
+## API routes
+
+The API (`@provisionless/api`) exposes a small Hono app. Routes are either public or protected by
+the `requireAuth` session middleware, which verifies the session cookie, loads the user, and rejects
+requests with a missing or tampered token, a disabled user, or a token issued before the user's last
+password change with `401`.
+
+| Route               | Access    | Purpose                                                 |
+| ------------------- | --------- | ------------------------------------------------------- |
+| `GET /health`       | Public    | Liveness check.                                         |
+| `POST /auth/login`  | Public    | Verify credentials and set the session cookie.          |
+| `POST /auth/logout` | Public    | Clear the session cookie.                               |
+| `GET /auth/me`      | Protected | Return the current user and refresh the session cookie. |
+
+Protected routes read the authenticated user from the request context (`c.get("user")`); register new
+routes behind `requireAuth` so they inherit the same checks.
+
 ## Continuous integration
 
 GitHub Actions runs typecheck, lint, unit tests, integration tests, the formatting check, and the

@@ -9,6 +9,7 @@ export interface User {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  passwordChangedAt: string;
 }
 
 export interface NewUser {
@@ -21,7 +22,7 @@ export interface NewUser {
   enabled?: boolean;
 }
 
-export type PublicUser = Omit<User, "passwordHash">;
+export type PublicUser = Omit<User, "passwordHash" | "passwordChangedAt">;
 
 export function toPublicUser(user: User): PublicUser {
   return {

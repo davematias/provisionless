@@ -29,6 +29,7 @@ it("creates a user with a hashed password and timestamps", async () => {
   expect(user.passwordHash).not.toBe("lovelace");
   expect(await verifyPassword("lovelace", user.passwordHash)).toBe(true);
   expect(user.createdAt).toBe(user.updatedAt);
+  expect(user.passwordChangedAt).toBe(user.createdAt);
   expect(user.enabled).toBe(true);
 
   const put = commands.find((command) => command instanceof PutCommand) as
@@ -94,4 +95,38 @@ it("sets updatedAt when updating a user", async () => {
   const user = await repository.updateUser("ada", { firstName: "Ada" });
 
   expect(user.updatedAt).toBeDefined();
+});
+
+it("bumps passwordChangedAt when the password changes", async () => {
+  const updates: UpdateCommand[] = [];
+  const repository = createRepository(async (command) => {
+    if (command instanceof UpdateCommand) {
+      updates.push(command);
+      return { Attributes: { username: "ada" } };
+    }
+    return {};
+  });
+
+  await repository.updateUser("ada", { password: "new-secret" });
+
+  const fields = Object.values(updates[0]?.input.ExpressionAttributeNames ?? {});
+  expect(fields).toContain("passwordHash");
+  expect(fields).toContain("passwordChangedAt");
+});
+
+it("does not touch passwordChangedAt for profile-only updates", async () => {
+  const updates: UpdateCommand[] = [];
+  const repository = createRepository(async (command) => {
+    if (command instanceof UpdateCommand) {
+      updates.push(command);
+      return { Attributes: { username: "ada" } };
+    }
+    return {};
+  });
+
+  await repository.updateUser("ada", { firstName: "Augusta" });
+
+  const fields = Object.values(updates[0]?.input.ExpressionAttributeNames ?? {});
+  expect(fields).not.toContain("passwordHash");
+  expect(fields).not.toContain("passwordChangedAt");
 });
