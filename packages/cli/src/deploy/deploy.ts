@@ -2,7 +2,12 @@ import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
 import { createAwsClients } from "../aws/clients.ts";
 import { apiNames } from "../aws/names.ts";
-import { resolveAppPrefix, resolveDomains, resolveRegion } from "../config/config.ts";
+import {
+  resolveAppPrefix,
+  resolveDomains,
+  resolveJwtSecret,
+  resolveRegion,
+} from "../config/config.ts";
 import { createLogger } from "../util/log.ts";
 import { createPrompter } from "../util/prompt.ts";
 import { findRepoRoot } from "../util/repo.ts";
@@ -50,6 +55,8 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       persist: !options.dryRun,
     });
 
+    const jwtSecret = resolveJwtSecret(repoRoot, !options.dryRun);
+
     const domains = await resolveDomains({
       repoRoot,
       adminDomain: options.adminDomain,
@@ -90,7 +97,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     );
 
     await deployMedia(ctx);
-    const apiUrl = await deployApi(ctx);
+    const apiUrl = await deployApi(ctx, jwtSecret);
     const admin = await deployAdmin(ctx);
 
     log(`API URL:   ${apiUrl}`);

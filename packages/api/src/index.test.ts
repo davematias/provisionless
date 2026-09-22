@@ -1,8 +1,14 @@
 import { expect, it } from "vitest";
 
-import { app } from "./index.ts";
+import { createApp } from "./index.ts";
 
 it("serves the health example route", async () => {
+  const app = createApp({
+    users: { getUser: async () => undefined },
+    jwtSecret: "test-secret",
+    secureCookies: false,
+  });
+
   const response = await app.request("/health");
 
   expect(response.status).toBe(200);

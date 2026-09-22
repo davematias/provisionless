@@ -25,7 +25,8 @@
   },
   "dependencies": {
     "@provisionless/core": "*",
-    "hono": "4.13.8"
+    "hono": "4.13.8",
+    "jose": "6.2.12"
   },
   "devDependencies": {
     "@hono/node-server": "2.1.1",
