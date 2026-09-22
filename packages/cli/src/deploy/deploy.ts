@@ -2,7 +2,7 @@ import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
 import { createAwsClients } from "../aws/clients.ts";
 import { apiNames } from "../aws/names.ts";
-import { resolveAppPrefix, resolveRegion } from "../config/config.ts";
+import { resolveAppPrefix, resolveDomains, resolveRegion } from "../config/config.ts";
 import { createLogger } from "../util/log.ts";
 import { createPrompter } from "../util/prompt.ts";
 import { findRepoRoot } from "../util/repo.ts";
@@ -50,6 +50,16 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       persist: !options.dryRun,
     });
 
+    const domains = await resolveDomains({
+      repoRoot,
+      adminDomain: options.adminDomain,
+      apiDomain: options.apiDomain,
+      hostedZone: options.hostedZone,
+      ask: prompter.ask,
+      log,
+      persist: !options.dryRun,
+    });
+
     let accountId = "000000000000";
     if (!options.dryRun) {
       const identity = await clients.sts.send(new GetCallerIdentityCommand({}));
@@ -66,6 +76,9 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       repoRoot,
       appPrefix,
       mediaBucket,
+      adminDomain: domains.adminDomain,
+      apiDomain: domains.apiDomain,
+      hostedZone: domains.hostedZone,
       log,
       clients,
     };

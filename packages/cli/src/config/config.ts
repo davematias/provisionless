@@ -11,6 +11,9 @@ export interface ProvisionlessConfig {
   appPrefix: string;
   mediaBucket?: string;
   region?: string;
+  adminDomain?: string;
+  apiDomain?: string;
+  hostedZone?: string;
 }
 
 export function configPath(repoRoot: string): string {
@@ -58,6 +61,102 @@ export async function resolveRegion(options: ResolveRegionOptions): Promise<stri
     updateConfig(options.repoRoot, { region });
   }
   return region;
+}
+
+export interface DomainConfig {
+  adminDomain?: string;
+  apiDomain?: string;
+  hostedZone?: string;
+}
+
+export function isValidDomain(domain: string): boolean {
+  return /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i.test(domain);
+}
+
+function validateDomains(config: DomainConfig): void {
+  const entries = [
+    ["admin domain", config.adminDomain],
+    ["api domain", config.apiDomain],
+  ] as const;
+
+  for (const [label, value] of entries) {
+    if (value !== undefined && !isValidDomain(value)) {
+      throw new Error(`Invalid ${label} "${value}".`);
+    }
+  }
+}
+
+export interface ResolveDomainsOptions {
+  repoRoot: string;
+  adminDomain?: string;
+  apiDomain?: string;
+  hostedZone?: string;
+  ask: Ask;
+  log: Logger;
+  persist: boolean;
+}
+
+export async function resolveDomains(options: ResolveDomainsOptions): Promise<DomainConfig> {
+  const existing = loadConfig(options.repoRoot);
+  const hasFlag =
+    options.adminDomain !== undefined ||
+    options.apiDomain !== undefined ||
+    options.hostedZone !== undefined;
+
+  if (hasFlag) {
+    const config: DomainConfig = {
+      adminDomain: options.adminDomain ?? existing?.adminDomain,
+      apiDomain: options.apiDomain ?? existing?.apiDomain,
+      hostedZone: options.hostedZone ?? existing?.hostedZone,
+    };
+    validateDomains(config);
+    if (options.persist) {
+      updateConfig(options.repoRoot, {
+        adminDomain: config.adminDomain,
+        apiDomain: config.apiDomain,
+        hostedZone: config.hostedZone,
+      });
+    }
+    return config;
+  }
+
+  if (existing?.adminDomain || existing?.apiDomain) {
+    const summary = [
+      existing.adminDomain ? `admin ${existing.adminDomain}` : undefined,
+      existing.apiDomain ? `api ${existing.apiDomain}` : undefined,
+    ]
+      .filter((part): part is string => part !== undefined)
+      .join(", ");
+    const reuse = await confirm(options.ask, `Reuse saved domains (${summary})?`, true);
+    if (reuse) {
+      return {
+        adminDomain: existing.adminDomain,
+        apiDomain: existing.apiDomain,
+        hostedZone: existing.hostedZone,
+      };
+    }
+  }
+
+  const adminAnswer = (await options.ask("Admin domain (blank for none): ")).trim();
+  const apiAnswer = (await options.ask("API domain (blank for none): ")).trim();
+  const zoneAnswer = (await options.ask("Route 53 hosted zone id or name (optional): ")).trim();
+
+  const config: DomainConfig = {
+    adminDomain: adminAnswer || undefined,
+    apiDomain: apiAnswer || undefined,
+    hostedZone: zoneAnswer || undefined,
+  };
+  validateDomains(config);
+
+  if (options.persist) {
+    updateConfig(options.repoRoot, {
+      adminDomain: config.adminDomain,
+      apiDomain: config.apiDomain,
+      hostedZone: config.hostedZone,
+    });
+    options.log(`saved domain settings to ${CONFIG_FILE}`);
+  }
+  return config;
 }
 
 export interface ResolveAppPrefixOptions {

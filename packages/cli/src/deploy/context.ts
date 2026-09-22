@@ -8,6 +8,9 @@ export interface DeployContext {
   repoRoot: string;
   appPrefix: string;
   mediaBucket: string;
+  adminDomain?: string;
+  apiDomain?: string;
+  hostedZone?: string;
   log: Logger;
   clients: AwsClients;
 }
@@ -17,6 +20,9 @@ export interface DeployOptions {
   dryRun: boolean;
   prefix?: string;
   mediaBucket?: string;
+  adminDomain?: string;
+  apiDomain?: string;
+  hostedZone?: string;
   testUserUsername?: string;
   testUserPassword?: string;
 }

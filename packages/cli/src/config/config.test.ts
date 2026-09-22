@@ -4,7 +4,13 @@ import { join } from "node:path";
 
 import { expect, it } from "vitest";
 
-import { loadConfig, resolveAppPrefix, resolveRegion, saveConfig } from "./config.ts";
+import {
+  loadConfig,
+  resolveAppPrefix,
+  resolveDomains,
+  resolveRegion,
+  saveConfig,
+} from "./config.ts";
 
 function tempRepo(): string {
   return mkdtempSync(join(tmpdir(), "provisionless-config-"));
@@ -73,6 +79,58 @@ it("rejects an invalid prefix", async () => {
     resolveAppPrefix({
       repoRoot: tempRepo(),
       prefix: "Bad_Prefix",
+      ask: async () => "",
+      log: noop,
+      persist: true,
+    }),
+  ).rejects.toThrow();
+});
+
+it("saves and reuses custom domains", async () => {
+  const repo = tempRepo();
+
+  const domains = await resolveDomains({
+    repoRoot: repo,
+    adminDomain: "admin.example.com",
+    apiDomain: "api.example.com",
+    hostedZone: "Z0123456789",
+    ask: async () => "",
+    log: noop,
+    persist: true,
+  });
+
+  expect(domains).toEqual({
+    adminDomain: "admin.example.com",
+    apiDomain: "api.example.com",
+    hostedZone: "Z0123456789",
+  });
+  expect(loadConfig(repo)?.adminDomain).toBe("admin.example.com");
+
+  const reused = await resolveDomains({
+    repoRoot: repo,
+    ask: async () => "y",
+    log: noop,
+    persist: true,
+  });
+  expect(reused.adminDomain).toBe("admin.example.com");
+});
+
+it("allows deploying without custom domains", async () => {
+  const domains = await resolveDomains({
+    repoRoot: tempRepo(),
+    ask: async () => "",
+    log: noop,
+    persist: true,
+  });
+
+  expect(domains).toEqual({ adminDomain: undefined, apiDomain: undefined, hostedZone: undefined });
+});
+
+it("rejects an invalid domain", async () => {
+  await expect(
+    resolveDomains({
+      repoRoot: tempRepo(),
+      adminDomain: "not a domain",
       ask: async () => "",
       log: noop,
       persist: true,

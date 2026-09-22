@@ -15,6 +15,10 @@ Options:
 - `--region <region>` — AWS region to deploy into (defaults to `AWS_REGION` or `us-east-1`).
 - `--prefix <prefix>` — app prefix used to name resources; prompted when omitted.
 - `--media-bucket <name>` — media bucket name (prompted when omitted); the app prefix is prepended.
+- `--admin-domain <domain>` / `--api-domain <domain>` — custom domains for the admin site and API
+  (prompted when omitted; leave blank to deploy without a custom domain).
+- `--hosted-zone <id-or-name>` — Route 53 hosted zone used to create DNS records automatically;
+  without it the CLI prints the records to add yourself.
 - `--test-user-username <username>` / `--test-user-password <password>` — supply the test user's
   credentials non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
@@ -46,6 +50,14 @@ manages. `--json` prints the same information machine-readably for agents and to
 
 The region comes from `--region`, otherwise from the saved `.provisionless` config, otherwise
 `AWS_REGION`, otherwise an interactive prompt. The resolved region is saved for later runs.
+
+### Custom domains
+
+Set `--admin-domain` and/or `--api-domain` to serve the admin site and API on your own domains
+(the certificate and DNS wiring are handled by later deploy steps). If a `--hosted-zone` is given,
+DNS records are created in Route 53 automatically; otherwise the CLI prints the records to add.
+The domains and hosted zone are saved in `.provisionless` and offered for reuse. Leave the prompts
+blank to deploy without custom domains.
 
 ### App prefix and saved config
 
