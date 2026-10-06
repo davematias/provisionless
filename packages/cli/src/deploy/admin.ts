@@ -6,17 +6,23 @@ import type {
   CacheBehavior,
   DefaultCacheBehavior,
   DistributionConfig,
+  FunctionAssociation,
   Method,
   Origin,
   OriginAccessControlSummary,
 } from "@aws-sdk/client-cloudfront";
 import {
   CreateDistributionCommand,
+  CreateFunctionCommand,
   CreateOriginAccessControlCommand,
+  DescribeFunctionCommand,
   GetDistributionCommand,
+  GetFunctionCommand,
   ListDistributionsCommand,
   ListOriginAccessControlsCommand,
+  PublishFunctionCommand,
   UpdateDistributionCommand,
+  UpdateFunctionCommand,
 } from "@aws-sdk/client-cloudfront";
 import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import {
@@ -38,7 +44,9 @@ import {
   putRolePolicy,
   updateFunctionEnvironment,
 } from "../aws/lambda.ts";
+import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames } from "../aws/names.ts";
+import { resolveHostedZoneId, upsertAliasRecords } from "../aws/route53.ts";
 import { ensureBucket } from "../aws/s3.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
@@ -49,9 +57,9 @@ const CACHING_OPTIMIZED_POLICY = "658327ea-f89d-4fab-a63d-7e88639e58f6";
 const ALL_VIEWER_EXCEPT_HOST_POLICY = "b689b0a8-53d0-40ab-baf2-68738e2966ac";
 const ALL_VIEWER_POLICY = "216adef6-5c7f-47e4-b989-5492eafa07d3";
 
-type OriginName = "s3" | "default" | "imageOptimizer";
+export type OriginName = "s3" | "default" | "imageOptimizer";
 
-interface OpenNextOutput {
+export interface OpenNextOutput {
   origins: {
     s3: { copy: Array<{ from: string; to: string }> };
     default: { bundle: string; handler: string };
@@ -62,7 +70,6 @@ interface OpenNextOutput {
   };
   behaviors: Array<{ pattern: string; origin: OriginName }>;
 }
-
 export interface AdminDeployment {
   url: string;
 }
@@ -321,11 +328,185 @@ function buildOrigins(
   ];
 }
 
-function buildDistributionConfig(
+export interface AdminDomainConfig {
+  canonical: string;
+  aliases: string[];
+  certificateArn: string;
+  redirectFunctionArn?: string;
+}
+
+const REDIRECT_ASSOCIATIONS = (
+  functionArn: string,
+): { Quantity: number; Items: FunctionAssociation[] } => ({
+  Quantity: 1,
+  Items: [{ EventType: "viewer-request", FunctionARN: functionArn }],
+});
+
+export function redirectFunctionCode(canonical: string): string {
+  return `function handler(event) {
+  var request = event.request;
+  var host = request.headers.host.value;
+  var canonical = "${canonical}";
+  if (host === canonical) {
+    return request;
+  }
+  var location = "https://" + canonical + request.uri;
+  var querystring = "";
+  for (var key in request.querystring) {
+    if (querystring === "") {
+      querystring = "?";
+    } else {
+      querystring = querystring + "&";
+    }
+    querystring = querystring + key + "=" + request.querystring[key].value;
+  }
+  return {
+    statusCode: 301,
+    statusDescription: "Moved Permanently",
+    headers: { location: { value: location + querystring } },
+  };
+}`;
+}
+
+interface FunctionStageInfo {
+  eTag: string;
+  status?: string;
+}
+
+async function describeFunctionStage(
+  ctx: DeployContext,
+  name: string,
+  stage: "DEVELOPMENT" | "LIVE",
+): Promise<FunctionStageInfo | undefined> {
+  try {
+    const result = await ctx.clients.cloudfront.send(
+      new DescribeFunctionCommand({ Name: name, Stage: stage }),
+    );
+    return { eTag: result.ETag ?? "", status: result.FunctionSummary?.Status };
+  } catch (error) {
+    if (isAwsError(error, "NoSuchFunctionExists")) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function getFunctionCode(
+  ctx: DeployContext,
+  name: string,
+  stage: "DEVELOPMENT" | "LIVE",
+): Promise<string | undefined> {
+  const result = await ctx.clients.cloudfront.send(
+    new GetFunctionCommand({ Name: name, Stage: stage }),
+  );
+  return result.FunctionCode ? Buffer.from(result.FunctionCode).toString("utf8") : undefined;
+}
+
+async function waitForFunctionStage(
+  ctx: DeployContext,
+  name: string,
+  stage: "DEVELOPMENT" | "LIVE",
+  target: string,
+  attempts = 30,
+): Promise<FunctionStageInfo> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const info = await describeFunctionStage(ctx, name, stage);
+    if (!info) {
+      throw new Error(`CloudFront function ${name} disappeared`);
+    }
+    if (info.status === target) {
+      return info;
+    }
+    if (info.status === "INVALID") {
+      throw new Error(`CloudFront function ${name} is invalid`);
+    }
+    await sleep(2000);
+  }
+  throw new Error(`Timed out waiting for CloudFront function ${name} to be ${target}`);
+}
+
+export async function ensureRedirectFunction(
+  ctx: DeployContext,
+  name: string,
+  canonical: string,
+): Promise<string> {
+  const arn = `arn:aws:cloudfront::${ctx.accountId}:function/${name}`;
+  const code = redirectFunctionCode(canonical);
+
+  if (ctx.dryRun) {
+    ctx.log(`would create CloudFront redirect function ${name} for ${canonical}`);
+    return arn;
+  }
+
+  const config = {
+    Comment: `${name}: redirect to ${canonical}`,
+    Runtime: "cloudfront-js-2.0" as const,
+  };
+
+  const development = await describeFunctionStage(ctx, name, "DEVELOPMENT");
+  let changed = false;
+  if (!development) {
+    ctx.log(`creating CloudFront redirect function ${name}`);
+    await ctx.clients.cloudfront.send(
+      new CreateFunctionCommand({
+        Name: name,
+        FunctionConfig: config,
+        FunctionCode: Buffer.from(code, "utf8"),
+      }),
+    );
+    changed = true;
+  } else if ((await getFunctionCode(ctx, name, "DEVELOPMENT")) !== code) {
+    ctx.log(`updating CloudFront redirect function ${name}`);
+    await ctx.clients.cloudfront.send(
+      new UpdateFunctionCommand({
+        Name: name,
+        IfMatch: development.eTag,
+        FunctionConfig: config,
+        FunctionCode: Buffer.from(code, "utf8"),
+      }),
+    );
+    changed = true;
+  }
+
+  const live = await describeFunctionStage(ctx, name, "LIVE");
+  if (changed || !live) {
+    const unpublished = await waitForFunctionStage(ctx, name, "DEVELOPMENT", "UNPUBISHED");
+    ctx.log(`publishing CloudFront redirect function ${name}`);
+    await ctx.clients.cloudfront.send(
+      new PublishFunctionCommand({ Name: name, IfMatch: unpublished.eTag }),
+    );
+    await waitForFunctionStage(ctx, name, "LIVE", "DEPLOYED");
+  }
+
+  return arn;
+}
+
+export async function configureAdminDns(
+  ctx: DeployContext,
+  names: string[],
+  distributionDomain: string,
+): Promise<void> {
+  if (ctx.hostedZone) {
+    if (ctx.dryRun) {
+      ctx.log(`would upsert Route 53 alias records for ${names.join(", ")}`);
+      return;
+    }
+    const hostedZoneId = await resolveHostedZoneId(ctx.clients.route53, ctx.hostedZone);
+    ctx.log(`updating Route 53 alias records for ${names.join(", ")}`);
+    await upsertAliasRecords(ctx.clients.route53, hostedZoneId, names, distributionDomain);
+    return;
+  }
+  ctx.log(
+    `add A/AAAA alias records in your DNS provider pointing ${names.join(", ")} to ${distributionDomain}`,
+  );
+}
+
+export function buildDistributionConfig(
   output: OpenNextOutput,
   origins: Origin[],
   callerReference: string,
   comment: string,
+  domain?: AdminDomainConfig,
 ): DistributionConfig {
   const cachePolicyFor = (origin: OriginName): string =>
     origin === "s3" || origin === "imageOptimizer"
@@ -337,12 +518,17 @@ function buildDistributionConfig(
   const allowedMethods = { Quantity: allowedItems.length, Items: allowedItems };
   const cachedMethods = { Quantity: cachedItems.length, Items: cachedItems };
 
+  const functionAssociations = domain?.redirectFunctionArn
+    ? REDIRECT_ASSOCIATIONS(domain.redirectFunctionArn)
+    : { Quantity: 0, Items: [] };
+
   const defaultBehavior: DefaultCacheBehavior = {
     TargetOriginId: "default",
     ViewerProtocolPolicy: "redirect-to-https",
     AllowedMethods: { ...allowedMethods, CachedMethods: cachedMethods },
     CachePolicyId: CACHING_DISABLED_POLICY,
     OriginRequestPolicyId: ALL_VIEWER_EXCEPT_HOST_POLICY,
+    FunctionAssociations: functionAssociations,
   };
 
   const orderedCacheBehaviors: CacheBehavior[] = output.behaviors
@@ -355,19 +541,26 @@ function buildDistributionConfig(
       CachePolicyId: cachePolicyFor(behavior.origin),
       OriginRequestPolicyId:
         behavior.origin === "imageOptimizer" ? ALL_VIEWER_POLICY : ALL_VIEWER_EXCEPT_HOST_POLICY,
+      FunctionAssociations: functionAssociations,
     }));
 
   return {
     CallerReference: callerReference,
     Comment: comment,
-    Aliases: { Quantity: 0 },
+    Aliases: domain ? { Quantity: domain.aliases.length, Items: domain.aliases } : { Quantity: 0 },
     Enabled: true,
     HttpVersion: "http2and3",
     PriceClass: "PriceClass_100",
     Origins: { Quantity: origins.length, Items: origins },
     DefaultCacheBehavior: defaultBehavior,
     CacheBehaviors: { Quantity: orderedCacheBehaviors.length, Items: orderedCacheBehaviors },
-    ViewerCertificate: { CloudFrontDefaultCertificate: true },
+    ViewerCertificate: domain
+      ? {
+          ACMCertificateArn: domain.certificateArn,
+          SSLSupportMethod: "sni-only",
+          MinimumProtocolVersion: "TLSv1.2_2021",
+        }
+      : { CloudFrontDefaultCertificate: true },
   };
 }
 
@@ -522,6 +715,28 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
     lambdaOacId,
   );
 
+  const site = ctx.adminDomain ? adminSiteNames(ctx.adminDomain) : undefined;
+  const attachDomain = Boolean(
+    site && (ctx.dryRun || (ctx.adminCertificateArn && ctx.adminCertificateIssued)),
+  );
+  if (site && !ctx.dryRun && !attachDomain) {
+    ctx.log(
+      `admin domain ${site.canonical} not attached yet: the ACM certificate is still pending DNS validation; re-run deploy once it is issued`,
+    );
+  }
+  let domainConfig: AdminDomainConfig | undefined;
+  if (site && attachDomain) {
+    domainConfig = {
+      canonical: site.canonical,
+      aliases: site.names,
+      certificateArn: ctx.adminCertificateArn ?? "<ACM certificate ARN>",
+      redirectFunctionArn:
+        site.redirectNames.length > 0
+          ? await ensureRedirectFunction(ctx, names.redirectFunction, site.canonical)
+          : undefined,
+    };
+  }
+
   const existing = await findDistribution(ctx, distributionComment);
   let distributionId = existing?.id;
   let distributionDomain = existing?.domainName;
@@ -534,6 +749,7 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
         origins,
         existing.config.CallerReference ?? `${ctx.appPrefix}-admin-${Date.now()}`,
         distributionComment,
+        domainConfig,
       );
       const mergedOrigins = (desired.Origins?.Items ?? []).map((origin) => ({
         ...existing.config.Origins?.Items?.find((prior) => prior.Id === origin.Id),
@@ -555,6 +771,8 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
             Enabled: true,
             HttpVersion: "http2and3",
             PriceClass: "PriceClass_100",
+            Aliases: desired.Aliases,
+            ViewerCertificate: desired.ViewerCertificate,
             Origins: { Quantity: mergedOrigins.length, Items: mergedOrigins },
             DefaultCacheBehavior: {
               ...existing.config.DefaultCacheBehavior,
@@ -581,11 +799,16 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
           origins,
           `${ctx.appPrefix}-admin-${Date.now()}`,
           distributionComment,
+          domainConfig,
         ),
       }),
     );
     distributionId = created.Distribution?.Id;
     distributionDomain = created.Distribution?.DomainName;
+  }
+
+  if (domainConfig && distributionDomain) {
+    await configureAdminDns(ctx, domainConfig.aliases, distributionDomain);
   }
 
   if (distributionId) {
@@ -698,7 +921,12 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
     }
   }
 
-  const url = distributionDomain ? `https://${distributionDomain}` : "https://<pending>";
+  const url =
+    domainConfig && distributionDomain
+      ? `https://${domainConfig.canonical}`
+      : distributionDomain
+        ? `https://${distributionDomain}`
+        : "https://<pending>";
   ctx.log(`admin deployed: ${url}`);
   return { url };
 }

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface ApiResourceNames {
   role: string;
   function: string;
@@ -16,6 +18,17 @@ export interface AdminResourceNames {
   distributionComment: string;
   s3Oac: string;
   lambdaOac: string;
+  redirectFunction: string;
+}
+
+function cloudFrontFunctionName(appPrefix: string): string {
+  const desired = `${appPrefix}-admin-redirect`;
+  if (desired.length <= 32) {
+    return desired;
+  }
+  const digest = createHash("sha256").update(desired).digest("hex").slice(0, 8);
+  const base = desired.slice(0, 23).replace(/-+$/, "");
+  return `${base}-${digest}`;
 }
 
 export function apiNames(appPrefix: string): ApiResourceNames {
@@ -39,6 +52,7 @@ export function adminNames(appPrefix: string, accountId: string): AdminResourceN
     distributionComment: `${appPrefix}-admin`,
     s3Oac: `${appPrefix}-admin-s3`,
     lambdaOac: `${appPrefix}-admin-lambda`,
+    redirectFunction: cloudFrontFunctionName(appPrefix),
   };
 }
 

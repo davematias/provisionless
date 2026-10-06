@@ -97,7 +97,11 @@ it("reuses saved certificate ARNs without requesting new certificates", async ()
 
   const result = await ensureCertificates(ctx, true);
 
-  expect(result).toEqual({ adminCertificateArn: "arn:admin", apiCertificateArn: "arn:api" });
+  expect(result).toEqual({
+    adminCertificateArn: "arn:admin",
+    adminCertificateIssued: true,
+    apiCertificateArn: "arn:api",
+  });
   expect(acmCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
   expect(adminCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
   expect(route53Commands).toEqual([]);
@@ -251,6 +255,98 @@ it("prints validation records instead of creating them when no hosted zone is co
   expect(logs.some((message) => message.includes("_y.acm-validations.aws."))).toBe(true);
 });
 
+it("requests a certificate covering apex and www names for the admin domain", async () => {
+  const repo = tempRepo();
+  saveConfig(repo, { appPrefix: "demo", adminDomain: "www.example.com" });
+
+  const adminCommands: unknown[] = [];
+
+  const ctx = createContext({
+    repoRoot: repo,
+    domains: { adminDomain: "www.example.com" },
+    acmUsEast1: async (command) => {
+      adminCommands.push(command);
+      if (command instanceof ListCertificatesCommand) {
+        return { CertificateSummaryList: [] };
+      }
+      if (command instanceof RequestCertificateCommand) {
+        return { CertificateArn: "arn:san" };
+      }
+      if (command instanceof DescribeCertificateCommand) {
+        return {
+          Certificate: {
+            CertificateArn: "arn:san",
+            DomainName: "www.example.com",
+            Status: "PENDING_VALIDATION",
+            DomainValidationOptions: [
+              {
+                DomainName: "www.example.com",
+                ResourceRecord: { Name: "_a.www.example.com.", Value: "_b.acm-validations.aws." },
+              },
+              {
+                DomainName: "example.com",
+                ResourceRecord: { Name: "_c.example.com.", Value: "_d.acm-validations.aws." },
+              },
+            ],
+          },
+        };
+      }
+      return {};
+    },
+  });
+
+  const result = await ensureCertificates(ctx, true);
+
+  expect(result.adminCertificateArn).toBe("arn:san");
+  expect(result.adminCertificateIssued).toBe(false);
+  const request = adminCommands.find((command) => command instanceof RequestCertificateCommand) as
+    | { input: { DomainName?: string; SubjectAlternativeNames?: string[] } }
+    | undefined;
+  expect(request?.input.DomainName).toBe("www.example.com");
+  expect(request?.input.SubjectAlternativeNames).toEqual(["example.com"]);
+});
+
+it("requests a new admin certificate when the saved one misses a redirect name", async () => {
+  const repo = tempRepo();
+  saveConfig(repo, {
+    appPrefix: "demo",
+    adminDomain: "example.com",
+    adminCertificateArn: "arn:old",
+  });
+
+  const adminCommands: unknown[] = [];
+
+  const ctx = createContext({
+    repoRoot: repo,
+    domains: { adminDomain: "example.com" },
+    acmUsEast1: async (command) => {
+      adminCommands.push(command);
+      if (command instanceof DescribeCertificateCommand) {
+        return {
+          Certificate: {
+            CertificateArn: "arn:old",
+            DomainName: "example.com",
+            SubjectAlternativeNames: ["example.com"],
+            Status: "ISSUED",
+          },
+        };
+      }
+      if (command instanceof ListCertificatesCommand) {
+        return { CertificateSummaryList: [] };
+      }
+      if (command instanceof RequestCertificateCommand) {
+        return { CertificateArn: "arn:new" };
+      }
+      return {};
+    },
+  });
+
+  const result = await ensureCertificates(ctx, true);
+
+  expect(result.adminCertificateArn).toBe("arn:new");
+  expect(adminCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(true);
+});
+
 it("resolves a hosted zone name to its id", async () => {
   const repo = tempRepo();
   saveConfig(repo, { appPrefix: "demo", apiDomain: "api.example.com", hostedZone: "example.com" });
@@ -330,7 +426,7 @@ it("does not touch AWS when no domains are configured", async () => {
 
   const result = await ensureCertificates(ctx, true);
 
-  expect(result).toEqual({});
+  expect(result).toEqual({ adminCertificateIssued: false });
   expect(called).toBe(false);
 });
 

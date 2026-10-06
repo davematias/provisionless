@@ -25,6 +25,7 @@ export interface EnsuredCertificate {
 export interface EnsureCertificateOptions {
   client: ACMClient;
   domain: string;
+  additionalDomains?: string[];
   existingArn?: string;
   dryRun: boolean;
   log: Logger;
@@ -43,11 +44,19 @@ function recordsFromValidation(validation: DomainValidation[] | undefined): DnsV
   return records;
 }
 
+function coversDomains(certificate: CertificateDetail, domains: string[]): boolean {
+  const issued = new Set<string>([certificate.DomainName ?? ""]);
+  for (const alt of certificate.SubjectAlternativeNames ?? []) {
+    issued.add(alt);
+  }
+  return domains.every((domain) => issued.has(domain));
+}
+
 function toEnsured(
   certificate: CertificateDetail | undefined,
-  domain: string,
+  domains: string[],
 ): EnsuredCertificate | undefined {
-  if (!certificate?.CertificateArn || certificate.DomainName !== domain) {
+  if (!certificate?.CertificateArn || !coversDomains(certificate, domains)) {
     return undefined;
   }
   if (certificate.Status === undefined || !REUSABLE_STATUSES.includes(certificate.Status)) {
@@ -63,7 +72,7 @@ function toEnsured(
 async function describeReusable(
   client: ACMClient,
   certificateArn: string | undefined,
-  domain: string,
+  domains: string[],
 ): Promise<EnsuredCertificate | undefined> {
   if (!certificateArn) {
     return undefined;
@@ -72,7 +81,7 @@ async function describeReusable(
     const detail = await client.send(
       new DescribeCertificateCommand({ CertificateArn: certificateArn }),
     );
-    return toEnsured(detail.Certificate, domain);
+    return toEnsured(detail.Certificate, domains);
   } catch (error) {
     if (isAwsError(error, "ResourceNotFoundException")) {
       return undefined;
@@ -83,14 +92,14 @@ async function describeReusable(
 
 async function findByDomain(
   client: ACMClient,
-  domain: string,
+  domains: string[],
 ): Promise<EnsuredCertificate | undefined> {
   let nextToken: string | undefined;
   do {
     const listed = await client.send(new ListCertificatesCommand({ NextToken: nextToken }));
     const candidates = (listed.CertificateSummaryList ?? []).filter(
       (summary) =>
-        summary.DomainName === domain &&
+        summary.DomainName === domains[0] &&
         summary.Status !== undefined &&
         REUSABLE_STATUSES.includes(summary.Status),
     );
@@ -99,7 +108,7 @@ async function findByDomain(
       const detail = await client.send(
         new DescribeCertificateCommand({ CertificateArn: chosen.CertificateArn }),
       );
-      return toEnsured(detail.Certificate, domain);
+      return toEnsured(detail.Certificate, domains);
     }
     nextToken = listed.NextToken;
   } while (nextToken);
@@ -110,34 +119,41 @@ async function findByDomain(
 export async function ensureCertificate(
   options: EnsureCertificateOptions,
 ): Promise<EnsuredCertificate> {
-  const { client, domain } = options;
+  const { client } = options;
+  const domains = [options.domain, ...(options.additionalDomains ?? [])];
 
   if (options.dryRun) {
-    options.log(`would ensure an ACM certificate for ${domain}`);
+    options.log(`would ensure an ACM certificate for ${domains.join(", ")}`);
     return { certificateArn: options.existingArn, records: [], issued: false };
   }
 
   const reusable =
-    (await describeReusable(client, options.existingArn, domain)) ??
-    (await findByDomain(client, domain));
+    (await describeReusable(client, options.existingArn, domains)) ??
+    (await findByDomain(client, domains));
   if (reusable) {
-    options.log(`reusing ACM certificate for ${domain}`);
+    options.log(`reusing ACM certificate for ${domains.join(", ")}`);
     return reusable;
   }
 
-  options.log(`requesting ACM certificate for ${domain}`);
+  options.log(`requesting ACM certificate for ${domains.join(", ")}`);
   const requested = await client.send(
-    new RequestCertificateCommand({ DomainName: domain, ValidationMethod: "DNS" }),
+    new RequestCertificateCommand({
+      DomainName: options.domain,
+      ...(options.additionalDomains && options.additionalDomains.length > 0
+        ? { SubjectAlternativeNames: options.additionalDomains }
+        : {}),
+      ValidationMethod: "DNS",
+    }),
   );
   if (!requested.CertificateArn) {
-    throw new Error(`ACM did not return a certificate ARN for ${domain}`);
+    throw new Error(`ACM did not return a certificate ARN for ${options.domain}`);
   }
 
   const detail = await client.send(
     new DescribeCertificateCommand({ CertificateArn: requested.CertificateArn }),
   );
   return (
-    toEnsured(detail.Certificate, domain) ?? {
+    toEnsured(detail.Certificate, domains) ?? {
       certificateArn: requested.CertificateArn,
       records: [],
       issued: false,
