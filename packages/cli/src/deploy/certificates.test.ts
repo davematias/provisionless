@@ -101,6 +101,7 @@ it("reuses saved certificate ARNs without requesting new certificates", async ()
     adminCertificateArn: "arn:admin",
     adminCertificateIssued: true,
     apiCertificateArn: "arn:api",
+    apiCertificateIssued: true,
   });
   expect(acmCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
   expect(adminCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
@@ -426,7 +427,7 @@ it("does not touch AWS when no domains are configured", async () => {
 
   const result = await ensureCertificates(ctx, true);
 
-  expect(result).toEqual({ adminCertificateIssued: false });
+  expect(result).toEqual({ adminCertificateIssued: false, apiCertificateIssued: false });
   expect(called).toBe(false);
 });
 

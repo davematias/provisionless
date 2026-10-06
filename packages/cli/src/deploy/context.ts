@@ -14,6 +14,7 @@ export interface DeployContext {
   adminCertificateArn?: string;
   adminCertificateIssued?: boolean;
   apiCertificateArn?: string;
+  apiCertificateIssued?: boolean;
   log: Logger;
   clients: AwsClients;
 }
