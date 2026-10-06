@@ -94,6 +94,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
 
     const certificates = await ensureCertificates(ctx, !options.dryRun);
     ctx.adminCertificateArn = certificates.adminCertificateArn;
+    ctx.adminCertificateIssued = certificates.adminCertificateIssued;
     ctx.apiCertificateArn = certificates.apiCertificateArn;
 
     log(

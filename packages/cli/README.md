@@ -60,11 +60,20 @@ Set `--admin-domain` and/or `--api-domain` to serve the admin site and API on yo
 the records to add. The domains and hosted zone are saved in `.provisionless` and offered for reuse.
 Leave the prompts blank to deploy without custom domains.
 
+For the admin site, the domain is attached to the CloudFront distribution together with its certificate.
+When the admin domain is an apex (for example `example.com`) its `www` variant is attached too (and the
+other way around for a `www` domain): both names are aliased to the distribution, and requests for the
+non-canonical name are redirected (HTTP 301) to the configured admin domain. Re-running deploy updates
+the distribution and DNS records idempotently. If the certificate is not issued yet, the deploy
+continues with the default CloudFront domain and prints guidance; re-run deploy once the certificate is
+issued to attach the domain.
+
 ### Certificates
 
 For each configured domain the CLI requests an ACM certificate (or reuses an existing one for the
-same domain): the admin certificate is created in `us-east-1`, which CloudFront requires, and the API
-certificate in the deployment region. When a `--hosted-zone` is configured, the CLI creates the DNS
+same domains): the admin certificate is created in `us-east-1`, which CloudFront requires, and the API
+certificate in the deployment region. The admin certificate also covers the `www`/apex sibling that is
+aliased to the distribution. When a `--hosted-zone` is configured, the CLI creates the DNS
 validation records in Route 53 and waits for the certificate to be issued. Without one, it prints the
 CNAME records to add and tells you how to continue once they are validated. Certificate ARNs are
 saved in `.provisionless` so later deploy steps can reference them.

@@ -6,6 +6,7 @@ import {
   waitForCertificateIssued,
   type DnsValidationRecord,
 } from "../aws/acm.ts";
+import { adminSiteNames } from "../aws/domains.ts";
 import { resolveHostedZoneId, upsertValidationRecords } from "../aws/route53.ts";
 import { loadConfig, updateConfig, type ProvisionlessConfig } from "../config/config.ts";
 import type { Logger } from "../util/log.ts";
@@ -13,12 +14,14 @@ import type { DeployContext } from "./context.ts";
 
 export interface CertificateResult {
   adminCertificateArn?: string;
+  adminCertificateIssued: boolean;
   apiCertificateArn?: string;
 }
 
 interface EnsureDomainCertificateOptions {
   client: ACMClient;
   domain: string;
+  additionalDomains?: string[];
   existingArn?: string;
   useHostedZone: boolean;
   hostedZoneId?: string;
@@ -47,25 +50,26 @@ function printValidationInstructions(
 
 async function ensureDomainCertificate(
   options: EnsureDomainCertificateOptions,
-): Promise<{ certificateArn?: string }> {
+): Promise<{ certificateArn?: string; issued: boolean }> {
   const ensured = await ensureCertificate({
     client: options.client,
     domain: options.domain,
+    additionalDomains: options.additionalDomains,
     existingArn: options.existingArn,
     dryRun: options.dryRun,
     log: options.log,
   });
 
   if (!ensured.certificateArn) {
-    return {};
+    return { issued: false };
   }
   if (ensured.issued) {
-    return { certificateArn: ensured.certificateArn };
+    return { certificateArn: ensured.certificateArn, issued: true };
   }
 
   if (!options.useHostedZone) {
     printValidationInstructions(options.log, options.domain, ensured.records);
-    return { certificateArn: ensured.certificateArn };
+    return { certificateArn: ensured.certificateArn, issued: false };
   }
 
   if (ensured.records.length > 0) {
@@ -82,14 +86,14 @@ async function ensureDomainCertificate(
     await waitForCertificateIssued(options.client, ensured.certificateArn, options.log);
   }
 
-  return { certificateArn: ensured.certificateArn };
+  return { certificateArn: ensured.certificateArn, issued: !options.dryRun };
 }
 
 export async function ensureCertificates(
   ctx: DeployContext,
   persist: boolean,
 ): Promise<CertificateResult> {
-  const result: CertificateResult = {};
+  const result: CertificateResult = { adminCertificateIssued: false };
   if (!ctx.adminDomain && !ctx.apiDomain) {
     return result;
   }
@@ -105,6 +109,7 @@ export async function ensureCertificates(
     const admin = await ensureDomainCertificate({
       client: ctx.clients.acmUsEast1,
       domain: ctx.adminDomain,
+      additionalDomains: adminSiteNames(ctx.adminDomain).redirectNames,
       existingArn: existing?.adminCertificateArn,
       useHostedZone,
       hostedZoneId,
@@ -113,6 +118,7 @@ export async function ensureCertificates(
       log: ctx.log,
     });
     result.adminCertificateArn = admin.certificateArn;
+    result.adminCertificateIssued = admin.issued;
   }
 
   if (ctx.apiDomain) {
