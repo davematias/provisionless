@@ -11,6 +11,8 @@ export interface DeployContext {
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
+  adminCertificateArn?: string;
+  apiCertificateArn?: string;
   log: Logger;
   clients: AwsClients;
 }

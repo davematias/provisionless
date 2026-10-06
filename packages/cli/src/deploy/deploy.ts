@@ -13,6 +13,7 @@ import { createPrompter } from "../util/prompt.ts";
 import { findRepoRoot } from "../util/repo.ts";
 import { deployAdmin } from "./admin.ts";
 import { deployApi } from "./api.ts";
+import { ensureCertificates } from "./certificates.ts";
 import type { DeployContext, DeployOptions } from "./context.ts";
 import { deployMedia, resolveMediaBucket } from "./media.ts";
 import { seedTestUser, type TestUserCredentials } from "./seed.ts";
@@ -90,6 +91,10 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       log,
       clients,
     };
+
+    const certificates = await ensureCertificates(ctx, !options.dryRun);
+    ctx.adminCertificateArn = certificates.adminCertificateArn;
+    ctx.apiCertificateArn = certificates.apiCertificateArn;
 
     log(
       options.dryRun

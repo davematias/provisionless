@@ -29,6 +29,7 @@ export const COMMAND_HELP = {
       "API: IAM role, Lambda function, API Gateway HTTP API, and a DynamoDB users table",
       "Admin: S3 assets bucket, DynamoDB tag cache, FIFO SQS queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
       "Media: an S3 media bucket",
+      "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set",
     ],
   },
   undeploy: {
