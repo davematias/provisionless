@@ -46,7 +46,11 @@ import {
 } from "../aws/lambda.ts";
 import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames } from "../aws/names.ts";
-import { resolveHostedZoneId, upsertAliasRecords } from "../aws/route53.ts";
+import {
+  CLOUDFRONT_HOSTED_ZONE_ID,
+  resolveHostedZoneId,
+  upsertAliasRecords,
+} from "../aws/route53.ts";
 import { ensureBucket } from "../aws/s3.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
@@ -493,7 +497,10 @@ export async function configureAdminDns(
     }
     const hostedZoneId = await resolveHostedZoneId(ctx.clients.route53, ctx.hostedZone);
     ctx.log(`updating Route 53 alias records for ${names.join(", ")}`);
-    await upsertAliasRecords(ctx.clients.route53, hostedZoneId, names, distributionDomain);
+    await upsertAliasRecords(ctx.clients.route53, hostedZoneId, names, {
+      dnsName: distributionDomain,
+      hostedZoneId: CLOUDFRONT_HOSTED_ZONE_ID,
+    });
     return;
   }
   ctx.log(

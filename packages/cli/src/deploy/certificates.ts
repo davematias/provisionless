@@ -16,6 +16,7 @@ export interface CertificateResult {
   adminCertificateArn?: string;
   adminCertificateIssued: boolean;
   apiCertificateArn?: string;
+  apiCertificateIssued: boolean;
 }
 
 interface EnsureDomainCertificateOptions {
@@ -93,7 +94,7 @@ export async function ensureCertificates(
   ctx: DeployContext,
   persist: boolean,
 ): Promise<CertificateResult> {
-  const result: CertificateResult = { adminCertificateIssued: false };
+  const result: CertificateResult = { adminCertificateIssued: false, apiCertificateIssued: false };
   if (!ctx.adminDomain && !ctx.apiDomain) {
     return result;
   }
@@ -133,6 +134,7 @@ export async function ensureCertificates(
       log: ctx.log,
     });
     result.apiCertificateArn = api.certificateArn;
+    result.apiCertificateIssued = api.issued;
   }
 
   if (persist) {

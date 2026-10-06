@@ -4,13 +4,20 @@ import { join } from "node:path";
 
 import {
   CreateApiCommand,
+  CreateApiMappingCommand,
+  CreateDomainNameCommand,
   CreateIntegrationCommand,
   CreateRouteCommand,
   CreateStageCommand,
+  GetApiMappingsCommand,
   GetApisCommand,
+  GetDomainNameCommand,
+  GetDomainNamesCommand,
   GetIntegrationsCommand,
   GetRoutesCommand,
   GetStagesCommand,
+  UpdateDomainNameCommand,
+  type DomainNameConfiguration,
 } from "@aws-sdk/client-apigatewayv2";
 import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import { build } from "esbuild";
@@ -22,6 +29,7 @@ import {
   putRolePolicy,
 } from "../aws/lambda.ts";
 import { apiNames } from "../aws/names.ts";
+import { resolveHostedZoneId, upsertAliasRecords, type AliasTarget } from "../aws/route53.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipFile } from "../util/zip.ts";
 import type { DeployContext } from "./context.ts";
@@ -52,6 +60,113 @@ async function findApiId(ctx: DeployContext): Promise<string | undefined> {
   return result.Items?.find((item) => item.Name === api)?.ApiId;
 }
 
+async function waitForDomainAvailable(
+  ctx: DeployContext,
+  domain: string,
+): Promise<DomainNameConfiguration> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const result = await ctx.clients.apiGateway.send(
+      new GetDomainNameCommand({ DomainName: domain }),
+    );
+    const configuration = result.DomainNameConfigurations?.[0];
+    if (configuration?.DomainNameStatus === "AVAILABLE") {
+      if (!configuration.ApiGatewayDomainName) {
+        throw new Error(`API Gateway custom domain ${domain} has no alias target`);
+      }
+      return configuration;
+    }
+    await sleep(2000);
+  }
+  throw new Error(`Timed out waiting for API Gateway custom domain ${domain} to become available`);
+}
+
+async function configureApiDns(
+  ctx: DeployContext,
+  domain: string,
+  target: AliasTarget,
+): Promise<void> {
+  if (ctx.hostedZone) {
+    const hostedZoneId = await resolveHostedZoneId(ctx.clients.route53, ctx.hostedZone);
+    ctx.log(`updating Route 53 alias record for ${domain}`);
+    await upsertAliasRecords(ctx.clients.route53, hostedZoneId, [domain], target);
+    return;
+  }
+  ctx.log(`add A/AAAA alias records in your DNS provider pointing ${domain} to ${target.dnsName}`);
+}
+
+export async function ensureApiDomain(
+  ctx: DeployContext,
+  apiId: string,
+): Promise<string | undefined> {
+  const domain = ctx.apiDomain;
+  if (!domain) {
+    return undefined;
+  }
+
+  if (ctx.dryRun) {
+    ctx.log(`would create or update API Gateway custom domain ${domain}`);
+    ctx.log(`would map API ${apiId} stage $default to ${domain}`);
+    if (ctx.hostedZone) {
+      ctx.log(`would upsert Route 53 alias records for ${domain}`);
+    } else {
+      ctx.log(
+        `add A/AAAA alias records in your DNS provider pointing ${domain} to <custom-domain-target>`,
+      );
+    }
+    return `https://${domain}`;
+  }
+
+  if (!ctx.apiCertificateArn || !ctx.apiCertificateIssued) {
+    ctx.log(
+      `api domain ${domain} not attached yet: the ACM certificate is still pending DNS validation; re-run deploy once it is issued`,
+    );
+    return undefined;
+  }
+
+  const listed = await ctx.clients.apiGateway.send(new GetDomainNamesCommand({}));
+  const found = listed.Items?.find((item) => item.DomainName === domain);
+  if (!found) {
+    ctx.log(`creating API Gateway custom domain ${domain}`);
+    await ctx.clients.apiGateway.send(
+      new CreateDomainNameCommand({
+        DomainName: domain,
+        DomainNameConfigurations: [{ CertificateArn: ctx.apiCertificateArn }],
+      }),
+    );
+  } else if (found.DomainNameConfigurations?.[0]?.CertificateArn !== ctx.apiCertificateArn) {
+    ctx.log(`updating certificate on API Gateway custom domain ${domain}`);
+    await ctx.clients.apiGateway.send(
+      new UpdateDomainNameCommand({
+        DomainName: domain,
+        DomainNameConfigurations: [{ CertificateArn: ctx.apiCertificateArn }],
+      }),
+    );
+  } else {
+    ctx.log(`reusing API Gateway custom domain ${domain}`);
+  }
+
+  const configuration = await waitForDomainAvailable(ctx, domain);
+  const target: AliasTarget = {
+    dnsName: configuration.ApiGatewayDomainName ?? "",
+    hostedZoneId: configuration.HostedZoneId ?? "",
+  };
+
+  const mappings = await ctx.clients.apiGateway.send(
+    new GetApiMappingsCommand({ DomainName: domain }),
+  );
+  const mapped = mappings.Items?.some((item) => item.ApiId === apiId && item.Stage === "$default");
+  if (!mapped) {
+    ctx.log(`mapping API ${apiId} stage $default to ${domain}`);
+    await ctx.clients.apiGateway.send(
+      new CreateApiMappingCommand({ ApiId: apiId, DomainName: domain, Stage: "$default" }),
+    );
+  }
+
+  await configureApiDns(ctx, domain, target);
+
+  return `https://${domain}`;
+}
+
 export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Promise<string> {
   const names = apiNames(ctx.appPrefix);
   let apiId = await findApiId(ctx);
@@ -59,7 +174,8 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
   if (!apiId) {
     if (ctx.dryRun) {
       ctx.log(`would create API Gateway HTTP API ${names.api}`);
-      return `https://<api-id>.execute-api.${ctx.region}.amazonaws.com`;
+      const domainUrl = await ensureApiDomain(ctx, "<api-id>");
+      return domainUrl ?? `https://<api-id>.execute-api.${ctx.region}.amazonaws.com`;
     }
     ctx.log(`creating API Gateway HTTP API ${names.api}`);
     const created = await ctx.clients.apiGateway.send(
@@ -120,7 +236,9 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
     `arn:aws:execute-api:${ctx.region}:${ctx.accountId}:${apiId}/*`,
   );
 
-  return `https://${apiId}.execute-api.${ctx.region}.amazonaws.com`;
+  const executeUrl = `https://${apiId}.execute-api.${ctx.region}.amazonaws.com`;
+  const domainUrl = await ensureApiDomain(ctx, apiId);
+  return domainUrl ?? executeUrl;
 }
 
 export async function ensureUsersTable(ctx: DeployContext): Promise<string> {

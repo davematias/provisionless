@@ -27,12 +27,10 @@ it("upserts A and AAAA alias records for every name", async () => {
     },
   } as unknown as Route53Client;
 
-  await upsertAliasRecords(
-    client,
-    "Z0123456789",
-    ["example.com", "www.example.com"],
-    "distribution.cloudfront.net",
-  );
+  await upsertAliasRecords(client, "Z0123456789", ["example.com", "www.example.com"], {
+    dnsName: "distribution.cloudfront.net",
+    hostedZoneId: "Z2FDTNDATAQYW2",
+  });
 
   expect(commands).toHaveLength(1);
   const input = (commands[0] as { input: ChangeInput }).input;
@@ -70,7 +68,10 @@ it("does nothing when there are no names", async () => {
     },
   } as unknown as Route53Client;
 
-  await upsertAliasRecords(client, "Z0123456789", [], "distribution.cloudfront.net");
+  await upsertAliasRecords(client, "Z0123456789", [], {
+    dnsName: "distribution.cloudfront.net",
+    hostedZoneId: "Z2FDTNDATAQYW2",
+  });
 
   expect(commands).toEqual([]);
 });

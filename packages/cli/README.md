@@ -64,9 +64,15 @@ For the admin site, the domain is attached to the CloudFront distribution togeth
 When the admin domain is an apex (for example `example.com`) its `www` variant is attached too (and the
 other way around for a `www` domain): both names are aliased to the distribution, and requests for the
 non-canonical name are redirected (HTTP 301) to the configured admin domain. Re-running deploy updates
-the distribution and DNS records idempotently. If the certificate is not issued yet, the deploy
+the distribution and DNS idempotently. If the certificate is not issued yet, the deploy
 continues with the default CloudFront domain and prints guidance; re-run deploy once the certificate is
 issued to attach the domain.
+
+For the API domain, the CLI creates an API Gateway regional custom domain with the certificate from the
+deployment region and maps it to the API's default stage, then reports `https://<api-domain>` as the API
+URL. A matching custom domain and mapping are reused, and a changed certificate is updated in place.
+Unlike the admin domain, the API domain is served alone (no apex/www pairing). If the API certificate is
+not issued yet, the deploy keeps the generated `execute-api` URL and prints guidance.
 
 ### Certificates
 
