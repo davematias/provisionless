@@ -610,7 +610,7 @@ async function uploadDirectory(
   await walk(localDir);
 }
 
-export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> {
+export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<AdminDeployment> {
   const openNextDir = join(ctx.repoRoot, "packages", "admin", ".open-next");
   const outputPath = join(openNextDir, "open-next.output.json");
 
@@ -625,6 +625,7 @@ export async function deployAdmin(ctx: DeployContext): Promise<AdminDeployment> 
     execFileSync("npm", ["run", "build:lambda", "--workspace=@provisionless/admin"], {
       cwd: ctx.repoRoot,
       stdio: "inherit",
+      env: { ...process.env, NEXT_PUBLIC_API_URL: apiUrl },
     });
   }
 

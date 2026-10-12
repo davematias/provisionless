@@ -18,11 +18,12 @@ import {
   ChangeResourceRecordSetsCommand,
   ListHostedZonesByNameCommand,
 } from "@aws-sdk/client-route-53";
+import { GetFunctionCommand, UpdateFunctionConfigurationCommand } from "@aws-sdk/client-lambda";
 import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
-import { ensureApiDomain, ensureHttpApi, ensureUsersTable } from "./api.ts";
+import { configureApiAuth, ensureApiDomain, ensureHttpApi, ensureUsersTable } from "./api.ts";
 import type { DeployContext } from "./context.ts";
 
 const FUNCTION_ARN = "arn:aws:lambda:us-east-1:111122223333:function:provisionless-api";
@@ -30,7 +31,7 @@ const FUNCTION_ARN = "arn:aws:lambda:us-east-1:111122223333:function:provisionle
 function createContext(apiGatewaySend: (command: unknown) => Promise<unknown>): DeployContext {
   const clients = {
     apiGateway: { send: apiGatewaySend },
-    lambda: { send: async () => ({}) },
+    lambda: { send: apiGatewaySend },
   } as unknown as AwsClients;
 
   return {
@@ -436,4 +437,50 @@ it("reports the custom domain URL through ensureHttpApi when the domain is attac
   const url = await ensureHttpApi(ctx, FUNCTION_ARN);
 
   expect(url).toBe("https://api.example.com");
+});
+
+it("configures the API function env for cross-site sign-in", async () => {
+  const commands: unknown[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    if (command instanceof GetFunctionCommand) {
+      return { Configuration: { State: "Active", LastUpdateStatus: "Successful" } };
+    }
+    return {};
+  });
+
+  await configureApiAuth(ctx, "secret", "https://admin.example.com");
+
+  const update = commands.find(
+    (command) => command instanceof UpdateFunctionConfigurationCommand,
+  ) as
+    | { input: { FunctionName?: string; Environment?: { Variables?: Record<string, string> } } }
+    | undefined;
+  expect(update?.input.FunctionName).toBe("provisionless-api");
+  expect(update?.input.Environment?.Variables?.AUTH_ALLOW_ORIGINS).toBe(
+    "https://admin.example.com",
+  );
+  expect(update?.input.Environment?.Variables?.AUTH_COOKIE_SAMESITE).toBe("None");
+  expect(update?.input.Environment?.Variables?.JWT_SECRET).toBe("secret");
+  expect(update?.input.Environment?.Variables?.USERS_TABLE_NAME).toBe("provisionless-users");
+});
+
+it("only reports the cross-site configuration during a dry run", async () => {
+  const commands: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    return {};
+  });
+  ctx.dryRun = true;
+  ctx.log = (message: string) => logs.push(message);
+
+  await configureApiAuth(ctx, "secret", "https://admin.example.com");
+
+  expect(commands).toEqual([]);
+  expect(
+    logs.some((message) =>
+      message.includes("would allow API sign-in from https://admin.example.com"),
+    ),
+  ).toBe(true);
 });

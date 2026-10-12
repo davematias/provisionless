@@ -27,6 +27,7 @@ import {
   deployFunction,
   ensureLambdaRole,
   putRolePolicy,
+  updateFunctionEnvironment,
 } from "../aws/lambda.ts";
 import { apiNames } from "../aws/names.ts";
 import { resolveHostedZoneId, upsertAliasRecords, type AliasTarget } from "../aws/route53.ts";
@@ -292,6 +293,31 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
     await sleep(2000);
   }
   throw new Error(`Timed out waiting for DynamoDB table ${usersTable}`);
+}
+
+export function apiEnv(ctx: DeployContext, jwtSecret: string): Record<string, string> {
+  return {
+    USERS_TABLE_NAME: apiNames(ctx.appPrefix).usersTable,
+    MEDIA_BUCKET_NAME: ctx.mediaBucket,
+    JWT_SECRET: jwtSecret,
+  };
+}
+
+export async function configureApiAuth(
+  ctx: DeployContext,
+  jwtSecret: string,
+  allowedOrigin: string,
+): Promise<void> {
+  if (ctx.dryRun) {
+    ctx.log(`would allow API sign-in from ${allowedOrigin} (SameSite=None session cookies)`);
+    return;
+  }
+  ctx.log(`allowing API sign-in from ${allowedOrigin}`);
+  await updateFunctionEnvironment(ctx, apiNames(ctx.appPrefix).function, {
+    ...apiEnv(ctx, jwtSecret),
+    AUTH_ALLOW_ORIGINS: allowedOrigin,
+    AUTH_COOKIE_SAMESITE: "None",
+  });
 }
 
 export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<string> {

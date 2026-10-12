@@ -430,7 +430,7 @@ it("creates the distribution with aliases, certificate, and redirect in a full r
     adminCertificateArn: "arn:aws:acm:us-east-1:111122223333:certificate/abc",
   });
 
-  const result = await deployAdmin(ctx);
+  const result = await deployAdmin(ctx, "https://api.example.test");
 
   expect(result.url).toBe("https://example.com");
   const create = commands.find((command) => command instanceof CreateFunctionCommand) as
@@ -517,7 +517,7 @@ it("updates an existing distribution with the domain configuration on re-deploy"
     adminCertificateArn: "arn:cert",
   });
 
-  const result = await deployAdmin(ctx);
+  const result = await deployAdmin(ctx, "https://api.example.test");
 
   expect(result.url).toBe("https://example.com");
   expect(commands.some((command) => command instanceof CreateDistributionCommand)).toBe(false);
@@ -557,7 +557,7 @@ it("upserts Route 53 records in a full run when a hosted zone is configured", as
     hostedZone: "example.com",
   });
 
-  await deployAdmin(ctx);
+  await deployAdmin(ctx, "https://api.example.test");
 
   const change = commands.find((command) => command instanceof ChangeResourceRecordSetsCommand) as
     | { input: { HostedZoneId?: string; ChangeBatch?: { Changes?: unknown[] } } }
@@ -575,7 +575,7 @@ it("deploys with the default certificate while the admin certificate is pending"
     adminDomain: "example.com",
   });
 
-  const result = await deployAdmin(ctx);
+  const result = await deployAdmin(ctx, "https://api.example.test");
 
   expect(result.url).toBe("https://abc123.cloudfront.net");
   const ctxLogs = logs;
@@ -606,7 +606,7 @@ it("wires the admin domain through a dry-run deployment", async () => {
     hostedZone: "example.com",
   });
 
-  const result = await deployAdmin(ctx);
+  const result = await deployAdmin(ctx, "https://api.example.test");
 
   expect(result.url).toBe("https://example.com");
   const ctxLogs = logs;
