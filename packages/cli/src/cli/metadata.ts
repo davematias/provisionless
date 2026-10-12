@@ -21,7 +21,7 @@ export const COMMAND_HELP = {
       "provisionless deploy --dry-run",
     ],
     prerequisites: [
-      "AWS credentials allowed to manage IAM, Lambda, API Gateway, S3, DynamoDB, SQS, and CloudFront",
+      "AWS credentials allowed to manage IAM, Lambda, API Gateway, S3, DynamoDB, SQS, CloudFront, ACM, and Route 53",
       "Run from inside the Provisionless repository",
       "For custom domains, a Route 53 hosted zone (to create DNS records automatically) or the ability to add DNS records yourself",
     ],
@@ -29,7 +29,7 @@ export const COMMAND_HELP = {
       "API: IAM role, Lambda function, API Gateway HTTP API, and a DynamoDB users table",
       "Admin: S3 assets bucket, DynamoDB tag cache, FIFO SQS queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
       "Media: an S3 media bucket",
-      "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set",
+      "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set; the admin domain is aliased to the CloudFront distribution (with an apex/www redirect) and the API domain to an API Gateway custom domain, each with alias DNS records when a hosted zone is set",
     ],
   },
   undeploy: {
@@ -49,6 +49,7 @@ export const COMMAND_HELP = {
       "API: Lambda function, API Gateway HTTP API, IAM role, and the users table (unless keeping data)",
       "Admin: CloudFront distribution, Lambdas, Function URLs, SQS queue, OACs, IAM role, tag cache and assets bucket (unless keeping data)",
       "Media: the S3 media bucket (unless keeping data)",
+      "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
     ],
   },
 } satisfies Record<string, CommandHelp>;

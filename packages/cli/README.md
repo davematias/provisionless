@@ -37,6 +37,12 @@ The CLI reads the app prefix from `.provisionless` (or `--prefix`) and asks whet
 (S3 objects and DynamoDB tables) before deleting anything. Use `--keep-data` / `--no-keep-data` to
 answer up front, `--yes` to skip the confirmation, and `--dry-run` to see what would be removed.
 
+Domain resources recorded in `.provisionless` are removed too: the API Gateway custom domain and its
+mappings, the Route 53 alias and ACM-validation records for the managed admin/API domains (the CLI only
+deletes records it created, never unrelated records in the zone), the CloudFront redirect function, and
+the ACM certificates (ACM keeps deleted certificates recoverable for 7 days). Certificates still in use
+during a teardown are reported so a later undeploy can remove them.
+
 ### Help
 
 ```bash
