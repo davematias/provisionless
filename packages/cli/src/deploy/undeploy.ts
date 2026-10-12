@@ -1,8 +1,18 @@
-import { DeleteApiCommand, GetApisCommand } from "@aws-sdk/client-apigatewayv2";
+import { DeleteCertificateCommand, type ACMClient } from "@aws-sdk/client-acm";
+import {
+  DeleteApiCommand,
+  DeleteApiMappingCommand,
+  DeleteDomainNameCommand,
+  GetApiMappingsCommand,
+  GetApisCommand,
+  GetDomainNamesCommand,
+} from "@aws-sdk/client-apigatewayv2";
 import type { DistributionConfig } from "@aws-sdk/client-cloudfront";
 import {
   DeleteDistributionCommand,
+  DeleteFunctionCommand as DeleteCloudFrontFunctionCommand,
   DeleteOriginAccessControlCommand,
+  DescribeFunctionCommand,
   GetDistributionCommand,
   GetOriginAccessControlCommand,
   ListDistributionsCommand,
@@ -32,7 +42,14 @@ import { DeleteQueueCommand, GetQueueUrlCommand } from "@aws-sdk/client-sqs";
 import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
 import { createAwsClients } from "../aws/clients.ts";
+import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames, apiNames } from "../aws/names.ts";
+import {
+  deleteRecords,
+  listDomainRecords,
+  pickDomainRecords,
+  resolveHostedZoneId,
+} from "../aws/route53.ts";
 import { loadConfig, resolveAppPrefix, resolveRegion } from "../config/config.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { createLogger } from "../util/log.ts";
@@ -304,15 +321,150 @@ async function deleteDistribution(ctx: DeployContext, comment: string): Promise<
   ctx.log(`deleted CloudFront distribution ${found.id}`);
 }
 
+async function deleteRedirectFunction(ctx: DeployContext, name: string): Promise<void> {
+  let etag: string | undefined;
+  try {
+    const described = await ctx.clients.cloudfront.send(
+      new DescribeFunctionCommand({ Name: name, Stage: "DEVELOPMENT" }),
+    );
+    etag = described.ETag;
+  } catch (error) {
+    if (isAwsError(error, "NoSuchFunctionExists")) {
+      ctx.log(`no CloudFront redirect function ${name}`);
+      return;
+    }
+    throw error;
+  }
+
+  if (ctx.dryRun) {
+    ctx.log(`would delete CloudFront redirect function ${name}`);
+    return;
+  }
+
+  await ctx.clients.cloudfront.send(
+    new DeleteCloudFrontFunctionCommand({ Name: name, IfMatch: etag }),
+  );
+  ctx.log(`deleted CloudFront redirect function ${name}`);
+}
+
+async function deleteApiCustomDomain(ctx: DeployContext): Promise<void> {
+  const domain = ctx.apiDomain;
+  if (!domain) {
+    return;
+  }
+
+  const listed = await ctx.clients.apiGateway.send(new GetDomainNamesCommand({}));
+  const found = listed.Items?.find((item) => item.DomainName === domain);
+  if (!found) {
+    ctx.log(`no API Gateway custom domain ${domain}`);
+    return;
+  }
+
+  if (ctx.dryRun) {
+    ctx.log(`would delete API Gateway custom domain ${domain} and its mappings`);
+    return;
+  }
+
+  const mappings = await ctx.clients.apiGateway.send(
+    new GetApiMappingsCommand({ DomainName: domain }),
+  );
+  for (const mapping of mappings.Items ?? []) {
+    if (mapping.ApiMappingId) {
+      await ctx.clients.apiGateway.send(
+        new DeleteApiMappingCommand({ ApiMappingId: mapping.ApiMappingId, DomainName: domain }),
+      );
+    }
+  }
+  await ctx.clients.apiGateway.send(new DeleteDomainNameCommand({ DomainName: domain }));
+  ctx.log(`deleted API Gateway custom domain ${domain}`);
+}
+
+async function deleteRoute53DomainRecords(ctx: DeployContext): Promise<void> {
+  if (!ctx.hostedZone) {
+    return;
+  }
+  const managedNames = domainManagedNames(ctx);
+  if (managedNames.length === 0) {
+    return;
+  }
+
+  const hostedZoneId = await resolveHostedZoneId(ctx.clients.route53, ctx.hostedZone);
+  const records = await listDomainRecords(ctx.clients.route53, hostedZoneId);
+  const matching = pickDomainRecords(records, managedNames);
+  if (matching.length === 0) {
+    ctx.log(`no Route 53 domain records to delete for ${managedNames.join(", ")}`);
+    return;
+  }
+
+  if (ctx.dryRun) {
+    for (const record of matching) {
+      ctx.log(`would delete Route 53 record ${record.Name} (${record.Type})`);
+    }
+    return;
+  }
+
+  await deleteRecords(ctx.clients.route53, hostedZoneId, matching);
+  ctx.log(`deleted ${matching.length} Route 53 domain records`);
+}
+
+async function deleteCertificate(
+  ctx: DeployContext,
+  arn: string,
+  label: string,
+  client: ACMClient,
+): Promise<void> {
+  if (ctx.dryRun) {
+    ctx.log(`would delete ACM certificate ${arn} (${label})`);
+    return;
+  }
+
+  try {
+    await client.send(new DeleteCertificateCommand({ CertificateArn: arn }));
+  } catch (error) {
+    if (isAwsError(error, "ResourceInUseException")) {
+      ctx.log(`ACM certificate ${arn} (${label}) is still in use; re-run undeploy to remove it`);
+      return;
+    }
+    if (isAwsError(error, "ResourceNotFoundException")) {
+      ctx.log(`no ACM certificate ${arn} (${label})`);
+      return;
+    }
+    throw error;
+  }
+  ctx.log(
+    `deleted ACM certificate ${arn} (${label}); archived for 7 days before permanent deletion`,
+  );
+}
+
+async function deleteAcmCertificates(ctx: DeployContext): Promise<void> {
+  if (ctx.adminCertificateArn) {
+    await deleteCertificate(ctx, ctx.adminCertificateArn, "admin", ctx.clients.acmUsEast1);
+  }
+  if (ctx.apiCertificateArn) {
+    await deleteCertificate(ctx, ctx.apiCertificateArn, "api", ctx.clients.acm);
+  }
+}
+
+export function domainManagedNames(ctx: DeployContext): string[] {
+  return [
+    ...(ctx.adminDomain ? adminSiteNames(ctx.adminDomain).names : []),
+    ...(ctx.apiDomain ? [ctx.apiDomain] : []),
+  ];
+}
+
 export async function teardown(ctx: DeployContext, keepData: boolean): Promise<void> {
   const names = adminNames(ctx.appPrefix, ctx.accountId);
   const api = apiNames(ctx.appPrefix);
 
   await deleteDistribution(ctx, names.distributionComment);
+  if (ctx.adminDomain && adminSiteNames(ctx.adminDomain).redirectNames.length > 0) {
+    await deleteRedirectFunction(ctx, names.redirectFunction);
+  }
   await deleteLambda(ctx, names.revalidationFunction);
   await deleteLambda(ctx, names.imageFunction);
   await deleteLambda(ctx, names.serverFunction);
   await deleteLambda(ctx, api.function);
+  await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
   await deleteQueue(ctx, names.revalidationQueue);
   await deleteOac(ctx, names.s3Oac);
@@ -331,6 +483,8 @@ export async function teardown(ctx: DeployContext, keepData: boolean): Promise<v
 
   await deleteRole(ctx, api.role, `${ctx.appPrefix}-api`);
   await deleteRole(ctx, names.role, names.distributionComment);
+  await deleteRoute53DomainRecords(ctx);
+  await deleteAcmCertificates(ctx);
 }
 
 export async function undeploy(options: UndeployOptions): Promise<void> {
@@ -391,6 +545,11 @@ export async function undeploy(options: UndeployOptions): Promise<void> {
       repoRoot,
       appPrefix,
       mediaBucket,
+      adminDomain: config?.adminDomain,
+      apiDomain: config?.apiDomain,
+      hostedZone: config?.hostedZone,
+      adminCertificateArn: config?.adminCertificateArn,
+      apiCertificateArn: config?.apiCertificateArn,
       log,
       clients,
     };

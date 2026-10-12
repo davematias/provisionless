@@ -1,6 +1,9 @@
 import {
   ChangeResourceRecordSetsCommand,
   ListHostedZonesByNameCommand,
+  ListResourceRecordSetsCommand,
+  type ResourceRecordSet,
+  type RRType,
   type Route53Client,
 } from "@aws-sdk/client-route-53";
 
@@ -88,6 +91,81 @@ export async function upsertAliasRecords(
     new ChangeResourceRecordSetsCommand({
       HostedZoneId: hostedZoneId,
       ChangeBatch: { Changes: changes },
+    }),
+  );
+}
+
+function normalize(name: string): string {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".") ? lower : `${lower}.`;
+}
+
+export function pickDomainRecords(
+  records: ResourceRecordSet[],
+  managedNames: string[],
+): ResourceRecordSet[] {
+  const managed = managedNames.map(normalize);
+  const selected: ResourceRecordSet[] = [];
+  for (const record of records) {
+    const name = record.Name ? normalize(record.Name) : "";
+    if (!name) {
+      continue;
+    }
+    const isAlias = record.Type === "A" || record.Type === "AAAA";
+    if (isAlias && record.AliasTarget && managed.includes(name)) {
+      selected.push(record);
+      continue;
+    }
+    const isValidation =
+      record.Type === "CNAME" &&
+      name.startsWith("_") &&
+      (record.ResourceRecords?.some((rr) =>
+        (rr.Value ?? "").toLowerCase().includes("acm-validations.aws"),
+      ) ??
+        false);
+    if (isValidation && managed.some((fqdn) => name.endsWith(`.${fqdn}`))) {
+      selected.push(record);
+    }
+  }
+  return selected;
+}
+
+export async function listDomainRecords(
+  client: Route53Client,
+  hostedZoneId: string,
+): Promise<ResourceRecordSet[]> {
+  const collected: ResourceRecordSet[] = [];
+  let startName: string | undefined;
+  let startType: string | undefined;
+  do {
+    const page = await client.send(
+      new ListResourceRecordSetsCommand({
+        HostedZoneId: hostedZoneId,
+        StartRecordName: startName,
+        StartRecordType: startType as RRType | undefined,
+      }),
+    );
+    collected.push(...(page.ResourceRecordSets ?? []));
+    startName = page.IsTruncated ? page.NextRecordName : undefined;
+    startType = page.IsTruncated ? page.NextRecordType : undefined;
+  } while (startName);
+  return collected;
+}
+
+export async function deleteRecords(
+  client: Route53Client,
+  hostedZoneId: string,
+  records: ResourceRecordSet[],
+): Promise<void> {
+  if (records.length === 0) {
+    return;
+  }
+  await client.send(
+    new ChangeResourceRecordSetsCommand({
+      HostedZoneId: hostedZoneId,
+      ChangeBatch: {
+        Changes: records.map((record) => ({ Action: "DELETE", ResourceRecordSet: record })),
+      },
     }),
   );
 }
