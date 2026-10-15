@@ -1,8 +1,7 @@
+import { ThemeProvider, ThemeScript } from "@provisionless/design-system";
 import type { ReactNode } from "react";
 
 import AuthGuard from "../components/auth-guard.tsx";
-import ThemeProvider from "../components/theme-provider.tsx";
-import ThemeScript from "../components/theme-script.tsx";
 
 import "./globals.css";
 

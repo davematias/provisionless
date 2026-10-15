@@ -39,19 +39,25 @@ requested page (or the admin home). The public routes are the allowlist in
 
 ## Design system
 
-The admin UI is built on [Tailwind CSS](https://tailwindcss.com) v4 and
-[shadcn/ui](https://ui.shadcn.com) (New York style). Tailwind configuration is CSS-first:
-design tokens live as CSS variables in `src/app/globals.css` and are mapped onto Tailwind
-utilities through `@theme`. Semantic colors (`primary`, `secondary`, `destructive`, `muted`,
-`background`, `foreground`, `border`, `ring`, and more) plus the typography, spacing, radius
-and shadow scales are defined there.
+The admin UI is built on the shared [`@provisionless/design-system`](../design-system)
+package, which provides [Tailwind CSS](https://tailwindcss.com) v4 tokens and
+[shadcn/ui](https://ui.shadcn.com) (New York style) components. The package ships its
+sources; the admin imports them directly and Next transpiles them (`transpilePackages` in
+`next.config.ts`).
+
+Tailwind configuration is CSS-first: `src/app/globals.css` imports Tailwind and the design
+system styles, and the design tokens live as CSS variables in
+`packages/design-system/src/styles.css` (mapped onto utilities through `@theme`). Semantic
+colors (`primary`, `secondary`, `destructive`, `muted`, `background`, `foreground`, `border`,
+`ring`, and more) plus the typography, spacing, radius and shadow scales are defined there.
 
 Dark mode is class-based (`.dark` on `<html>`), follows the system preference by default, and
 can be toggled manually with the `ThemeToggle` in the admin shell.
 
-New shadcn/ui components can be added with the CLI; `components.json` and the `@/*` TypeScript
-path alias in `tsconfig.json` are already configured. The UI primitives live in
-`src/components/ui`, and the `cn()` helper is in `src/lib/utils.ts`.
+Add new shadcn/ui components to the design system package; `components.json` and the `@/*`
+TypeScript path alias live there. The UI primitives are in
+`packages/design-system/src/components/ui`, and the `cn()` helper is in
+`packages/design-system/src/lib/utils.ts`.
 
 ## Build
 

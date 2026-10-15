@@ -1,4 +1,4 @@
-import { Button } from "../../components/ui/button.tsx";
+import { Button } from "@provisionless/design-system";
 
 export default function HomePage() {
   return (
