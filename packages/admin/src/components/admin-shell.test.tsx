@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@provisionless/design-system";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -9,7 +10,6 @@ vi.mock("next/link", () => ({
 }));
 
 import AdminShell from "./admin-shell.tsx";
-import ThemeProvider from "./theme-provider.tsx";
 
 afterEach(cleanup);
 

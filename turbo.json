@@ -5,6 +5,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
+    "@provisionless/design-system#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["^build"],
       "outputs": []
