@@ -1,7 +1,6 @@
+import { ThemeToggle } from "@provisionless/design-system";
 import Link from "next/link";
 import type { ReactNode } from "react";
-
-import ThemeToggle from "./theme-toggle.tsx";
 
 const NAV_ITEMS = [{ href: "/", label: "Dashboard" }] as const;
 
