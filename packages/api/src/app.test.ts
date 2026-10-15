@@ -24,7 +24,11 @@ beforeAll(async () => {
 
 function appWith(deps: Partial<Parameters<typeof createApp>[0]>): Hono {
   return createApp({
-    users: { getUser: async (username) => (username === active.username ? active : undefined) },
+    users: {
+      getUser: async (username) => (username === active.username ? active : undefined),
+      updateUser: async () => undefined,
+    },
+    resetTokens: { create: async () => "token", consume: async () => undefined },
     jwtSecret: "test-secret",
     secureCookies: false,
     ...deps,

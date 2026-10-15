@@ -1,10 +1,13 @@
-import { createUserRepository } from "@provisionless/core";
+import { createResetTokenRepository, createUserRepository } from "@provisionless/core";
 import { handle } from "hono/aws-lambda";
 
 import { createApp, parseAllowOrigins, parseCookieSameSite } from "./app.ts";
 
 const app = createApp({
   users: createUserRepository(process.env.USERS_TABLE_NAME ?? "provisionless-users"),
+  resetTokens: createResetTokenRepository(
+    process.env.RESET_TOKENS_TABLE_NAME ?? "provisionless-reset-tokens",
+  ),
   jwtSecret: process.env.JWT_SECRET ?? "insecure-development-secret",
   secureCookies: process.env.AUTH_COOKIE_SECURE !== "false",
   cookieSameSite: parseCookieSameSite(process.env.AUTH_COOKIE_SAMESITE),

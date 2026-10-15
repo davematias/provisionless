@@ -43,15 +43,19 @@ the `requireAuth` session middleware, which verifies the session cookie, loads t
 requests with a missing or tampered token, a disabled user, or a token issued before the user's last
 password change with `401`.
 
-| Route               | Access    | Purpose                                                 |
-| ------------------- | --------- | ------------------------------------------------------- |
-| `GET /health`       | Public    | Liveness check.                                         |
-| `POST /auth/login`  | Public    | Verify credentials and set the session cookie.          |
-| `POST /auth/logout` | Public    | Clear the session cookie.                               |
-| `GET /auth/me`      | Protected | Return the current user and refresh the session cookie. |
+| Route                      | Access    | Purpose                                                                                  |
+| -------------------------- | --------- | ---------------------------------------------------------------------------------------- |
+| `GET /health`              | Public    | Liveness check.                                                                          |
+| `POST /auth/login`         | Public    | Verify credentials and set the session cookie.                                           |
+| `POST /auth/logout`        | Public    | Clear the session cookie.                                                                |
+| `GET /auth/me`             | Protected | Return the current user and refresh the session cookie.                                  |
+| `POST /auth/reset/request` | Public    | Create a single-use password reset token (same response whether or not the user exists). |
+| `POST /auth/reset/confirm` | Public    | Consume a reset token and set a new password, invalidating existing sessions.            |
 
 Protected routes read the authenticated user from the request context (`c.get("user")`); register new
-routes behind `requireAuth` so they inherit the same checks.
+routes behind `requireAuth` so they inherit the same checks. Password reset tokens are stored hashed
+in DynamoDB and consumed atomically, so each token works once and expires; a successful reset bumps
+the user's `passwordChangedAt`, which invalidates their existing sessions.
 
 ## Continuous integration
 

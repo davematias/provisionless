@@ -5,6 +5,7 @@ export interface ApiResourceNames {
   function: string;
   api: string;
   usersTable: string;
+  resetTokensTable: string;
 }
 
 export interface AdminResourceNames {
@@ -37,6 +38,7 @@ export function apiNames(appPrefix: string): ApiResourceNames {
     function: `${appPrefix}-api`,
     api: `${appPrefix}-api`,
     usersTable: `${appPrefix}-users`,
+    resetTokensTable: `${appPrefix}-reset-tokens`,
   };
 }
 

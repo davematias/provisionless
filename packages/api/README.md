@@ -26,6 +26,16 @@ site uses. When the admin app is served from a different origin, set:
 
 `provisionless deploy` sets these automatically for the deployed admin and API URLs.
 
+### Password reset
+
+`POST /auth/reset/request` (body `{ "username": "..." }`) creates a single-use, expiring token for
+the user and returns `{ "ok": true }`; it returns the same response for unknown usernames, so it never
+reveals whether an account exists. Only a hash of the token is stored, in the DynamoDB table named by
+`RESET_TOKENS_TABLE_NAME`; the raw token is passed to a delivery hook (the email provider is a later
+change) and is never returned over HTTP. `POST /auth/reset/confirm` (body `{ "token": "...",
+"password": "..." }`) consumes the token once and sets the new password, which invalidates the user's
+existing sessions.
+
 ### Example route
 
 `GET /health` returns:

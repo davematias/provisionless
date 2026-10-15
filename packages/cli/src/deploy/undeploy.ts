@@ -472,10 +472,11 @@ export async function teardown(ctx: DeployContext, keepData: boolean): Promise<v
 
   if (keepData) {
     ctx.log(
-      `keeping data: ${names.assetsBucket}, ${ctx.mediaBucket}, ${api.usersTable}, ${names.tagCacheTable}`,
+      `keeping data: ${names.assetsBucket}, ${ctx.mediaBucket}, ${api.usersTable}, ${api.resetTokensTable}, ${names.tagCacheTable}`,
     );
   } else {
     await deleteTable(ctx, api.usersTable);
+    await deleteTable(ctx, api.resetTokensTable);
     await deleteTable(ctx, names.tagCacheTable);
     await emptyAndDeleteBucket(ctx, names.assetsBucket);
     await emptyAndDeleteBucket(ctx, ctx.mediaBucket);

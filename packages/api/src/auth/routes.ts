@@ -9,11 +9,22 @@ import {
   SESSION_TTL_SECONDS,
   type AppEnv,
   type SessionDependencies,
+  type UserStore,
 } from "./session.ts";
 
 export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "./session.ts";
 
+export interface ResetTokenStore {
+  create(username: string): Promise<string>;
+  consume(token: string): Promise<string | undefined>;
+}
+
 export interface AuthDependencies extends SessionDependencies {
+  users: UserStore & {
+    updateUser(username: string, changes: { password: string }): Promise<unknown>;
+  };
+  resetTokens: ResetTokenStore;
+  deliverReset?: (username: string, token: string) => void | Promise<void>;
   secureCookies?: boolean;
   cookieSameSite?: "Lax" | "None";
 }
@@ -37,6 +48,33 @@ function extractCredentials(body: unknown): { username: string; password: string
     return undefined;
   }
   return { username: username.trim(), password };
+}
+
+function extractUsername(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) {
+    return undefined;
+  }
+  const { username } = body as { username?: unknown };
+  if (typeof username !== "string" || username.trim() === "") {
+    return undefined;
+  }
+  return username.trim();
+}
+
+function extractResetConfirmation(body: unknown): { token: string; password: string } | undefined {
+  if (typeof body !== "object" || body === null) {
+    return undefined;
+  }
+  const { token, password } = body as { token?: unknown; password?: unknown };
+  if (
+    typeof token !== "string" ||
+    token.trim() === "" ||
+    typeof password !== "string" ||
+    password === ""
+  ) {
+    return undefined;
+  }
+  return { token: token.trim(), password };
 }
 
 export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): void {
@@ -68,6 +106,37 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
   });
 
   app.post("/auth/logout", (c) => {
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ ok: true });
+  });
+
+  app.post("/auth/reset/request", async (c) => {
+    const username = extractUsername(await c.req.json().catch(() => undefined));
+    if (!username) {
+      return c.json({ error: "username is required" }, 400);
+    }
+
+    const user = await deps.users.getUser(username);
+    if (user) {
+      const token = await deps.resetTokens.create(user.username);
+      await deps.deliverReset?.(user.username, token);
+    }
+    return c.json({ ok: true });
+  });
+
+  app.post("/auth/reset/confirm", async (c) => {
+    const confirmation = extractResetConfirmation(await c.req.json().catch(() => undefined));
+    if (!confirmation) {
+      return c.json({ error: "token and password are required" }, 400);
+    }
+
+    const username = await deps.resetTokens.consume(confirmation.token);
+    const user = username ? await deps.users.getUser(username) : undefined;
+    if (!user) {
+      return c.json({ error: "Invalid or expired reset token" }, 400);
+    }
+
+    await deps.users.updateUser(user.username, { password: confirmation.password });
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.json({ ok: true });
   });

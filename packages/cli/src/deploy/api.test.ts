@@ -19,11 +19,21 @@ import {
   ListHostedZonesByNameCommand,
 } from "@aws-sdk/client-route-53";
 import { GetFunctionCommand, UpdateFunctionConfigurationCommand } from "@aws-sdk/client-lambda";
-import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
+import {
+  CreateTableCommand,
+  DescribeTableCommand,
+  UpdateTimeToLiveCommand,
+} from "@aws-sdk/client-dynamodb";
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
-import { configureApiAuth, ensureApiDomain, ensureHttpApi, ensureUsersTable } from "./api.ts";
+import {
+  configureApiAuth,
+  ensureApiDomain,
+  ensureHttpApi,
+  ensureResetTokensTable,
+  ensureUsersTable,
+} from "./api.ts";
 import type { DeployContext } from "./context.ts";
 
 const FUNCTION_ARN = "arn:aws:lambda:us-east-1:111122223333:function:provisionless-api";
@@ -144,6 +154,58 @@ it("reuses an existing users table", async () => {
   const tableName = await ensureUsersTable(ctx);
 
   expect(tableName).toBe("provisionless-users");
+  expect(created).toBe(false);
+});
+
+it("creates the reset tokens table with a tokenHash key and expiry TTL", async () => {
+  const commands: unknown[] = [];
+  let describeCalls = 0;
+  const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeTableCommand) {
+      describeCalls += 1;
+      if (describeCalls === 1) {
+        const error = new Error("missing");
+        error.name = "ResourceNotFoundException";
+        throw error;
+      }
+      return { Table: { TableStatus: "ACTIVE" } };
+    }
+    return {};
+  });
+
+  const tableName = await ensureResetTokensTable(ctx);
+
+  expect(tableName).toBe("provisionless-reset-tokens");
+  const create = commands.find((command) => command instanceof CreateTableCommand) as
+    | { input: TableInput }
+    | undefined;
+  expect(create?.input.KeySchema).toEqual([{ AttributeName: "tokenHash", KeyType: "HASH" }]);
+  const ttl = commands.find((command) => command instanceof UpdateTimeToLiveCommand) as
+    | {
+        input: {
+          TimeToLiveSpecification?: { AttributeName?: string; Enabled?: boolean };
+        };
+      }
+    | undefined;
+  expect(ttl?.input.TimeToLiveSpecification).toEqual({
+    AttributeName: "expiresAt",
+    Enabled: true,
+  });
+});
+
+it("reuses an existing reset tokens table", async () => {
+  let created = false;
+  const ctx = createDynamoContext(async (command) => {
+    if (command instanceof CreateTableCommand) {
+      created = true;
+    }
+    return { Table: { TableStatus: "ACTIVE" } };
+  });
+
+  const tableName = await ensureResetTokensTable(ctx);
+
+  expect(tableName).toBe("provisionless-reset-tokens");
   expect(created).toBe(false);
 });
 
@@ -463,6 +525,9 @@ it("configures the API function env for cross-site sign-in", async () => {
   expect(update?.input.Environment?.Variables?.AUTH_COOKIE_SAMESITE).toBe("None");
   expect(update?.input.Environment?.Variables?.JWT_SECRET).toBe("secret");
   expect(update?.input.Environment?.Variables?.USERS_TABLE_NAME).toBe("provisionless-users");
+  expect(update?.input.Environment?.Variables?.RESET_TOKENS_TABLE_NAME).toBe(
+    "provisionless-reset-tokens",
+  );
 });
 
 it("only reports the cross-site configuration during a dry run", async () => {
