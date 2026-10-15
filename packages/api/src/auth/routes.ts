@@ -15,13 +15,14 @@ export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "./session.ts";
 
 export interface AuthDependencies extends SessionDependencies {
   secureCookies?: boolean;
+  cookieSameSite?: "Lax" | "None";
 }
 
-function cookieOptions(secure: boolean) {
+function cookieOptions(secure: boolean, sameSite: "Lax" | "None") {
   return {
     httpOnly: true,
-    secure,
-    sameSite: "Lax" as const,
+    secure: sameSite === "None" ? true : secure,
+    sameSite,
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   };
@@ -40,6 +41,7 @@ function extractCredentials(body: unknown): { username: string; password: string
 
 export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): void {
   const secure = deps.secureCookies ?? true;
+  const cookies = cookieOptions(secure, deps.cookieSameSite ?? "Lax");
 
   app.post("/auth/login", async (c) => {
     const credentials = extractCredentials(await c.req.json().catch(() => undefined));
@@ -61,7 +63,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
       deps.jwtSecret,
       SESSION_TTL_SECONDS,
     );
-    setCookie(c, SESSION_COOKIE, token, cookieOptions(secure));
+    setCookie(c, SESSION_COOKIE, token, cookies);
     return c.json({ user: toPublicUser(user) });
   });
 
@@ -77,7 +79,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
       deps.jwtSecret,
       SESSION_TTL_SECONDS,
     );
-    setCookie(c, SESSION_COOKIE, refreshed, cookieOptions(secure));
+    setCookie(c, SESSION_COOKIE, refreshed, cookies);
     return c.json({ user: toPublicUser(user) });
   });
 }

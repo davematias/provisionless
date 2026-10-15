@@ -12,7 +12,7 @@ import { createLogger } from "../util/log.ts";
 import { createPrompter } from "../util/prompt.ts";
 import { findRepoRoot } from "../util/repo.ts";
 import { deployAdmin } from "./admin.ts";
-import { deployApi } from "./api.ts";
+import { configureApiAuth, deployApi } from "./api.ts";
 import { ensureCertificates } from "./certificates.ts";
 import type { DeployContext, DeployOptions } from "./context.ts";
 import { deployMedia, resolveMediaBucket } from "./media.ts";
@@ -106,7 +106,8 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
 
     await deployMedia(ctx);
     const apiUrl = await deployApi(ctx, jwtSecret);
-    const admin = await deployAdmin(ctx);
+    const admin = await deployAdmin(ctx, apiUrl);
+    await configureApiAuth(ctx, jwtSecret, admin.url);
 
     log(`API URL:   ${apiUrl}`);
     log(`Admin URL: ${admin.url}`);
