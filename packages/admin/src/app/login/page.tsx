@@ -1,5 +1,17 @@
 "use client";
 
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Input,
+  Label,
+} from "@provisionless/design-system";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 
@@ -54,37 +66,48 @@ function LoginForm() {
   }
 
   return (
-    <main>
-      <h1>Sign in</h1>
-      <form onSubmit={onSubmit}>
-        <p>
-          <label htmlFor="username">Username</label>
-          <input
-            id="username"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            required
-          />
-        </p>
-        <p>
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </p>
-        <button type="submit" disabled={pending}>
-          {pending ? "Signing in…" : "Sign in"}
-        </button>
-        {error ? <p role="alert">{error}</p> : null}
-      </form>
+    <main className="flex min-h-svh items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Sign in</CardTitle>
+          <CardDescription>Sign in to manage your content.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </div>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <Button type="submit" className="w-full" loading={pending}>
+              {pending ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

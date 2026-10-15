@@ -2,6 +2,9 @@ import { ThemeToggle } from "@provisionless/design-system";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import LogoutButton from "./logout-button.tsx";
+import UserMenu from "./user-menu.tsx";
+
 const NAV_ITEMS = [{ href: "/", label: "Dashboard" }] as const;
 
 export default function AdminShell({ children }: { children: ReactNode }) {
@@ -27,11 +30,15 @@ export default function AdminShell({ children }: { children: ReactNode }) {
             ))}
           </ul>
         </nav>
-        <div className="border-t border-border p-3">
+        <div className="flex items-center gap-2 border-t border-border p-3">
+          <LogoutButton className="flex-1 justify-start" />
           <ThemeToggle />
         </div>
       </aside>
       <div className="flex flex-1 flex-col">
+        <header className="flex h-14 items-center justify-end border-b border-border px-4">
+          <UserMenu />
+        </header>
         <main className="flex-1 p-6">{children}</main>
       </div>
     </div>
