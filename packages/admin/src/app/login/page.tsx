@@ -1,14 +1,30 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 
-export default function LoginPage() {
+import { hasSession, resolveRedirect } from "../../lib/session.ts";
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = resolveRedirect(searchParams.get("from"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void hasSession(process.env.NEXT_PUBLIC_API_URL).then((ok) => {
+      if (active && ok) {
+        router.replace(redirectTo);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [redirectTo, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,7 +44,7 @@ export default function LoginPage() {
         setError("Invalid username or password");
         return;
       }
-      router.replace("/");
+      router.replace(redirectTo);
       router.refresh();
     } catch {
       setError("Could not reach the API. Please try again.");
@@ -70,5 +86,13 @@ export default function LoginPage() {
         {error ? <p role="alert">{error}</p> : null}
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
