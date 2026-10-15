@@ -1,9 +1,16 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
 
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navigation.replace, refresh: navigation.refresh }),
+  useSearchParams: () => navigation.searchParams,
+}));
 
 import LoginPage from "./page.tsx";
 
@@ -11,8 +18,10 @@ const API = "https://api.example.test";
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_API_URL = API;
-  router.replace.mockReset();
-  router.refresh.mockReset();
+  navigation.replace.mockReset();
+  navigation.refresh.mockReset();
+  navigation.searchParams = new URLSearchParams();
+  stubFetch(async () => new Response("{}", { status: 401 }));
 });
 
 afterEach(() => {
@@ -24,6 +33,15 @@ function stubFetch(implementation: (input: unknown, init?: RequestInit) => Promi
   const fetchMock = vi.fn(implementation);
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+function stubSession(meStatus: number) {
+  return stubFetch(
+    async (input) =>
+      new Response("{}", {
+        status: String(input).endsWith("/auth/me") ? meStatus : 200,
+      }),
+  );
 }
 
 it("renders username and password fields", () => {
@@ -44,8 +62,8 @@ it("posts credentials to the API login endpoint with cookies and redirects home"
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "lovelace" } });
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-  await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
-  expect(router.refresh).toHaveBeenCalled();
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
+  expect(navigation.refresh).toHaveBeenCalled();
   expect(fetchMock).toHaveBeenCalledWith(`${API}/auth/login`, {
     method: "POST",
     credentials: "include",
@@ -55,11 +73,47 @@ it("posts credentials to the API login endpoint with cookies and redirects home"
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
+it("returns to the originally requested page after signing in", async () => {
+  navigation.searchParams = new URLSearchParams("from=%2Fcontent%2Fpages");
+  stubSession(401);
+  render(<LoginPage />);
+
+  fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ada" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "lovelace" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/content/pages"));
+});
+
+it("ignores a non-internal requested page after signing in", async () => {
+  navigation.searchParams = new URLSearchParams("from=%2F%2Fevil.example");
+  stubSession(401);
+  render(<LoginPage />);
+
+  fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ada" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "lovelace" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
+});
+
+it("redirects an already-authenticated visitor to the requested page", async () => {
+  navigation.searchParams = new URLSearchParams("from=%2Fcontent");
+  stubSession(200);
+  render(<LoginPage />);
+
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/content"));
+});
+
+it("redirects an already-authenticated visitor home by default", async () => {
+  stubSession(200);
+  render(<LoginPage />);
+
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
+});
+
 it("shows a generic error for invalid credentials without redirecting", async () => {
-  stubFetch(
-    async () =>
-      new Response(JSON.stringify({ error: "Invalid username or password" }), { status: 401 }),
-  );
+  stubFetch(async () => new Response("{}", { status: 401 }));
   render(<LoginPage />);
 
   fireEvent.change(screen.getByLabelText("Username"), { target: { value: "ada" } });
@@ -68,15 +122,12 @@ it("shows a generic error for invalid credentials without redirecting", async ()
 
   const alert = await screen.findByRole("alert");
   expect(alert.textContent).toBe("Invalid username or password");
-  expect(router.replace).not.toHaveBeenCalled();
+  expect(navigation.replace).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
 it("shows the same generic error for a disabled account", async () => {
-  stubFetch(
-    async () =>
-      new Response(JSON.stringify({ error: "Invalid username or password" }), { status: 401 }),
-  );
+  stubFetch(async () => new Response("{}", { status: 401 }));
   render(<LoginPage />);
 
   fireEvent.change(screen.getByLabelText("Username"), { target: { value: "disabled-user" } });
@@ -99,7 +150,7 @@ it("reports network failures without redirecting", async () => {
 
   const alert = await screen.findByRole("alert");
   expect(alert.textContent).toBe("Could not reach the API. Please try again.");
-  expect(router.replace).not.toHaveBeenCalled();
+  expect(navigation.replace).not.toHaveBeenCalled();
 });
 
 it("shows a pending state while logging in and redirects when it completes", async () => {
@@ -118,5 +169,5 @@ it("shows a pending state while logging in and redirects when it completes", asy
   expect(pendingButton.hasAttribute("disabled")).toBe(true);
 
   release(new Response("{}", { status: 200 }));
-  await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+  await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"));
 });
