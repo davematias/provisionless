@@ -37,6 +37,22 @@ returns them there after signing in; already-authenticated visitors to `/login` 
 requested page (or the admin home). The public routes are the allowlist in
 `src/lib/session.ts` (`PUBLIC_PATHS`): `/login` and `/reset-password`.
 
+## Design system
+
+The admin UI is built on [Tailwind CSS](https://tailwindcss.com) v4 and
+[shadcn/ui](https://ui.shadcn.com) (New York style). Tailwind configuration is CSS-first:
+design tokens live as CSS variables in `src/app/globals.css` and are mapped onto Tailwind
+utilities through `@theme`. Semantic colors (`primary`, `secondary`, `destructive`, `muted`,
+`background`, `foreground`, `border`, `ring`, and more) plus the typography, spacing, radius
+and shadow scales are defined there.
+
+Dark mode is class-based (`.dark` on `<html>`), follows the system preference by default, and
+can be toggled manually with the `ThemeToggle` in the admin shell.
+
+New shadcn/ui components can be added with the CLI; `components.json` and the `@/*` TypeScript
+path alias in `tsconfig.json` are already configured. The UI primitives live in
+`src/components/ui`, and the `cn()` helper is in `src/lib/utils.ts`.
+
 ## Build
 
 ```bash
