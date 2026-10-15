@@ -37,3 +37,12 @@ it("renders the child element when asChild is set", () => {
   expect(screen.getByRole("link", { name: "Content" }).getAttribute("href")).toBe("/content");
   expect(screen.queryByRole("button")).toBeNull();
 });
+
+it("shows a spinner and disables the button while loading", () => {
+  render(<Button loading>Save</Button>);
+
+  const button = screen.getByRole("button", { name: "Save" });
+  expect(button.hasAttribute("disabled")).toBe(true);
+  expect(button.getAttribute("data-loading")).toBe("true");
+  expect(button.querySelector("svg")).not.toBeNull();
+});

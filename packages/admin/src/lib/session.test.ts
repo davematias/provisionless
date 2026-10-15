@@ -1,6 +1,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { hasSession, isPublicPath, loginUrlFor, resolveRedirect } from "./session.ts";
+import {
+  displayName,
+  fetchCurrentUser,
+  hasSession,
+  isPublicPath,
+  loginUrlFor,
+  logout,
+  resolveRedirect,
+} from "./session.ts";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -71,4 +79,62 @@ it("checks the session against the API me endpoint with credentials", async () =
   expect(fetchMock).toHaveBeenCalledWith("https://api.example.test/auth/me", {
     credentials: "include",
   });
+});
+
+it("formats a display name, falling back to the username", () => {
+  expect(displayName({ firstName: "Ada", lastName: "Lovelace", username: "ada" })).toBe(
+    "Ada Lovelace",
+  );
+  expect(displayName({ firstName: "", lastName: "", username: "ada" })).toBe("ada");
+});
+
+it("fetches the current user from the me endpoint", async () => {
+  const user = { username: "ada", firstName: "Ada", lastName: "Lovelace" };
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ user }), { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(fetchCurrentUser("https://api.example.test")).resolves.toEqual(user);
+  expect(fetchMock).toHaveBeenCalledWith("https://api.example.test/auth/me", {
+    credentials: "include",
+  });
+});
+
+it("returns undefined for an unauthenticated or unreachable me endpoint", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response("{}", { status: 401 })),
+  );
+  await expect(fetchCurrentUser("https://api.example.test")).resolves.toBeUndefined();
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }),
+  );
+  await expect(fetchCurrentUser("https://api.example.test")).resolves.toBeUndefined();
+
+  await expect(fetchCurrentUser(undefined)).resolves.toBeUndefined();
+});
+
+it("logs out with a credentialed POST to the logout endpoint", async () => {
+  const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await expect(logout("https://api.example.test")).resolves.toBe(true);
+  expect(fetchMock).toHaveBeenCalledWith("https://api.example.test/auth/logout", {
+    method: "POST",
+    credentials: "include",
+  });
+});
+
+it("reports a failed logout", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    }),
+  );
+  await expect(logout("https://api.example.test")).resolves.toBe(false);
+  await expect(logout(undefined)).resolves.toBe(false);
 });
