@@ -38,7 +38,9 @@ function appWith(user: User | undefined): Hono {
   return createApp({
     users: {
       getUser: async (username) => (user && user.username === username ? user : undefined),
+      updateUser: async () => undefined,
     },
+    resetTokens: { create: async () => "token", consume: async () => undefined },
     jwtSecret: "test-secret",
     secureCookies: false,
   });

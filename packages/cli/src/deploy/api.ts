@@ -19,7 +19,11 @@ import {
   UpdateDomainNameCommand,
   type DomainNameConfiguration,
 } from "@aws-sdk/client-apigatewayv2";
-import { CreateTableCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
+import {
+  CreateTableCommand,
+  DescribeTableCommand,
+  UpdateTimeToLiveCommand,
+} from "@aws-sdk/client-dynamodb";
 import { build } from "esbuild";
 
 import {
@@ -295,9 +299,60 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
   throw new Error(`Timed out waiting for DynamoDB table ${usersTable}`);
 }
 
+export async function ensureResetTokensTable(ctx: DeployContext): Promise<string> {
+  const { resetTokensTable } = apiNames(ctx.appPrefix);
+
+  try {
+    const existing = await ctx.clients.dynamodb.send(
+      new DescribeTableCommand({ TableName: resetTokensTable }),
+    );
+    if (existing.Table?.TableStatus === "ACTIVE") {
+      return resetTokensTable;
+    }
+  } catch (error) {
+    if (!isAwsError(error, "ResourceNotFoundException")) {
+      throw error;
+    }
+  }
+
+  if (ctx.dryRun) {
+    ctx.log(`would create DynamoDB table ${resetTokensTable}`);
+    return resetTokensTable;
+  }
+
+  ctx.log(`creating DynamoDB table ${resetTokensTable}`);
+  await ctx.clients.dynamodb.send(
+    new CreateTableCommand({
+      TableName: resetTokensTable,
+      AttributeDefinitions: [{ AttributeName: "tokenHash", AttributeType: "S" }],
+      KeySchema: [{ AttributeName: "tokenHash", KeyType: "HASH" }],
+      BillingMode: "PAY_PER_REQUEST",
+    }),
+  );
+  await ctx.clients.dynamodb.send(
+    new UpdateTimeToLiveCommand({
+      TableName: resetTokensTable,
+      TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+    }),
+  );
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const result = await ctx.clients.dynamodb.send(
+      new DescribeTableCommand({ TableName: resetTokensTable }),
+    );
+    if (result.Table?.TableStatus === "ACTIVE") {
+      return resetTokensTable;
+    }
+    await sleep(2000);
+  }
+  throw new Error(`Timed out waiting for DynamoDB table ${resetTokensTable}`);
+}
+
 export function apiEnv(ctx: DeployContext, jwtSecret: string): Record<string, string> {
+  const names = apiNames(ctx.appPrefix);
   return {
-    USERS_TABLE_NAME: apiNames(ctx.appPrefix).usersTable,
+    USERS_TABLE_NAME: names.usersTable,
+    RESET_TOKENS_TABLE_NAME: names.resetTokensTable,
     MEDIA_BUCKET_NAME: ctx.mediaBucket,
     JWT_SECRET: jwtSecret,
   };
@@ -325,6 +380,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
   ctx.log("bundling API Lambda");
   const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
   const tableName = await ensureUsersTable(ctx);
+  const resetTokensTable = await ensureResetTokensTable(ctx);
   const roleArn = await ensureLambdaRole(ctx, names.role);
 
   await putRolePolicy(ctx, names.role, `${ctx.appPrefix}-api`, [
@@ -341,6 +397,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
       Resource: [
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${tableName}`,
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${tableName}/index/*`,
+        `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${resetTokensTable}`,
       ],
     },
     {
@@ -365,6 +422,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
     memorySize: 1024,
     env: {
       USERS_TABLE_NAME: tableName,
+      RESET_TOKENS_TABLE_NAME: resetTokensTable,
       MEDIA_BUCKET_NAME: ctx.mediaBucket,
       JWT_SECRET: jwtSecret,
     },

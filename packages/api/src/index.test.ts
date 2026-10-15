@@ -4,7 +4,8 @@ import { createApp } from "./index.ts";
 
 it("serves the health example route", async () => {
   const app = createApp({
-    users: { getUser: async () => undefined },
+    users: { getUser: async () => undefined, updateUser: async () => undefined },
+    resetTokens: { create: async () => "token", consume: async () => undefined },
     jwtSecret: "test-secret",
     secureCookies: false,
   });

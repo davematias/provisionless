@@ -102,6 +102,7 @@ import {
   ListResourceRecordSetsCommand,
 } from "@aws-sdk/client-route-53";
 import { DeleteCertificateCommand } from "@aws-sdk/client-acm";
+import { DeleteTableCommand } from "@aws-sdk/client-dynamodb";
 import { GetFunctionCommand } from "@aws-sdk/client-lambda";
 
 function awsError(name: string): never {
@@ -184,7 +185,12 @@ function createTeardownContext(
         return awsError("QueueDoesNotExist");
       },
     },
-    dynamodb: { send: async () => ({}) },
+    dynamodb: {
+      send: async (command: unknown) => {
+        records.push(command);
+        return {};
+      },
+    },
     s3: { send: async () => ({}) },
     iam: {
       send: async (command: unknown) => {
@@ -295,4 +301,21 @@ it("tolerates certificates that are still in use", async () => {
     logs.some((message) => message.includes("arn:admin") && message.includes("still in use")),
   ).toBe(true);
   expect(logs.some((message) => message.includes("deleted ACM certificate arn:api"))).toBe(true);
+});
+
+it("deletes the users and reset token tables when the data is removed", async () => {
+  const records: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createTeardownContext(records, logs, { dryRun: false });
+
+  await teardown(ctx, false);
+
+  const deleted = records
+    .filter(
+      (command): command is { input: { TableName?: string } } =>
+        command instanceof DeleteTableCommand,
+    )
+    .map((command) => command.input.TableName);
+  expect(deleted).toContain("demo-users");
+  expect(deleted).toContain("demo-reset-tokens");
 });
