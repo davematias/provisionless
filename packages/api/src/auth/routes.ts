@@ -4,6 +4,7 @@ import { deleteCookie, setCookie } from "hono/cookie";
 
 import { signSession } from "./jwt.ts";
 import { requireAuth } from "./middleware.ts";
+import { buildResetUrl, DEFAULT_ADMIN_BASE_URL } from "./reset-link.ts";
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -25,6 +26,7 @@ export interface AuthDependencies extends SessionDependencies {
   };
   resetTokens: ResetTokenStore;
   deliverReset?: (user: User, token: string) => void | Promise<void>;
+  adminBaseUrl?: string;
   secureCookies?: boolean;
   cookieSameSite?: "Lax" | "None";
 }
@@ -122,6 +124,29 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
       await deps.deliverReset?.(user, token);
     }
     return c.json({ ok: true });
+  });
+
+  app.post("/auth/reset/link", requireAuth(deps), async (c) => {
+    const user = c.get("user");
+    if (!user.isAdmin) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    const username = extractUsername(await c.req.json().catch(() => undefined));
+    if (!username) {
+      return c.json({ error: "username is required" }, 400);
+    }
+
+    const target = await deps.users.getUser(username);
+    if (!target) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    const token = await deps.resetTokens.create(target.username);
+    return c.json({
+      username: target.username,
+      url: buildResetUrl(deps.adminBaseUrl ?? DEFAULT_ADMIN_BASE_URL, token),
+    });
   });
 
   app.post("/auth/reset/confirm", async (c) => {

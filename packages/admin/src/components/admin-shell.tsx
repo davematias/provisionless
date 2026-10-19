@@ -5,7 +5,10 @@ import type { ReactNode } from "react";
 import LogoutButton from "./logout-button.tsx";
 import UserMenu from "./user-menu.tsx";
 
-const NAV_ITEMS = [{ href: "/", label: "Dashboard" }] as const;
+const NAV_ITEMS = [
+  { href: "/", label: "Dashboard" },
+  { href: "/reset-links", label: "Reset links" },
+] as const;
 
 export default function AdminShell({ children }: { children: ReactNode }) {
   return (
