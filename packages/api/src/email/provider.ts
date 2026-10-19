@@ -1,6 +1,8 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import type { User } from "@provisionless/core";
 
+import { buildResetUrl } from "../auth/reset-link.ts";
+
 export interface ResetEmailMessage {
   to: string;
   username: string;
@@ -151,10 +153,9 @@ export type ResetEmailDelivery = (user: User, token: string) => Promise<void>;
  */
 export function createResetEmailDelivery(options: ResetEmailDeliveryOptions): ResetEmailDelivery {
   const log = options.log ?? console.log;
-  const baseUrl = options.adminBaseUrl.replace(/\/+$/, "");
 
   return async (user, token) => {
-    const resetUrl = `${baseUrl}/reset?token=${encodeURIComponent(token)}`;
+    const resetUrl = buildResetUrl(options.adminBaseUrl, token);
 
     if (!user.email) {
       if (options.provider.channel === "log") {

@@ -50,6 +50,12 @@ deploy CLI prints verification guidance when it creates the identity. Request pr
 SES before relying on reset emails for real users. Users without an email address cannot receive SES
 mail; the API logs a warning in that case.
 
+Admins can also create a link manually with `POST /auth/reset/link` (body `{ "username": "..." }`).
+The route requires an admin session, returns `{ "username": "...", "url": "..." }`, and does not send
+email, so it works when SES is not configured. Non-admin callers get `403`, unknown usernames get
+`404` without creating a token, and the returned link has the same one-hour, single-use behavior as
+an emailed link.
+
 ### Example route
 
 `GET /health` returns:

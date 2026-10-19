@@ -37,6 +37,13 @@ usernames are registered.
 `/login?reset=success`, where the login page shows a confirmation. Invalid or expired tokens get a
 clear error with a link back to `/forgot`.
 
+### Manual reset links
+
+`/reset-links` (available to administrators in the sidebar) generates a one-time link without
+sending email. It posts the username to `${NEXT_PUBLIC_API_URL}/auth/reset/link` and shows the
+returned URL with a copy button. Use it when SES is not configured or a user cannot receive mail;
+share the link over a trusted channel. The link expires after one hour and works once.
+
 ## Route protection
 
 Admin pages require a session. Because the admin and API are served from different sites and the

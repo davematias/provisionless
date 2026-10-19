@@ -50,6 +50,7 @@ password change with `401`.
 | `POST /auth/logout`        | Public    | Clear the session cookie.                                                                |
 | `GET /auth/me`             | Protected | Return the current user and refresh the session cookie.                                  |
 | `POST /auth/reset/request` | Public    | Create a single-use password reset token (same response whether or not the user exists). |
+| `POST /auth/reset/link`    | Admin     | Create a single-use reset link to share manually, without sending email.                 |
 | `POST /auth/reset/confirm` | Public    | Consume a reset token and set a new password, invalidating existing sessions.            |
 
 Protected routes read the authenticated user from the request context (`c.get("user")`); register new

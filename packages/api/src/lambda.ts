@@ -2,9 +2,11 @@ import { createResetTokenRepository, createUserRepository } from "@provisionless
 import { handle } from "hono/aws-lambda";
 
 import { createApp, parseAllowOrigins, parseCookieSameSite } from "./app.ts";
+import { DEFAULT_ADMIN_BASE_URL } from "./auth/reset-link.ts";
 import { createEmailProviderFromEnv, createResetEmailDelivery } from "./email/provider.ts";
 
 const emailProvider = createEmailProviderFromEnv({ env: process.env });
+const adminBaseUrl = process.env.ADMIN_BASE_URL ?? DEFAULT_ADMIN_BASE_URL;
 
 const app = createApp({
   users: createUserRepository(process.env.USERS_TABLE_NAME ?? "provisionless-users"),
@@ -13,8 +15,9 @@ const app = createApp({
   ),
   deliverReset: createResetEmailDelivery({
     provider: emailProvider,
-    adminBaseUrl: process.env.ADMIN_BASE_URL ?? "http://localhost:3001",
+    adminBaseUrl,
   }),
+  adminBaseUrl,
   jwtSecret: process.env.JWT_SECRET ?? "insecure-development-secret",
   secureCookies: process.env.AUTH_COOKIE_SECURE !== "false",
   cookieSameSite: parseCookieSameSite(process.env.AUTH_COOKIE_SAMESITE),

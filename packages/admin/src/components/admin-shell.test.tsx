@@ -28,6 +28,7 @@ it("renders a sidebar navigation area and the main content", () => {
 
   expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
   expect(screen.getByRole("link", { name: "Dashboard" })).toBeDefined();
+  expect(screen.getByRole("link", { name: "Reset links" })).toBeDefined();
   expect(screen.getByRole("main").textContent).toContain("page body");
   expect(screen.getByRole("button", { name: "Toggle dark mode" })).toBeDefined();
 });
