@@ -17,14 +17,17 @@ afterEach(() => {
 it("treats the login and password-reset pages as public", () => {
   expect(isPublicPath("/login")).toBe(true);
   expect(isPublicPath("/login/forgot")).toBe(true);
-  expect(isPublicPath("/reset-password")).toBe(true);
-  expect(isPublicPath("/reset-password/abc")).toBe(true);
+  expect(isPublicPath("/forgot")).toBe(true);
+  expect(isPublicPath("/reset")).toBe(true);
+  expect(isPublicPath("/reset/abc")).toBe(true);
 });
 
 it("treats everything else as protected", () => {
   expect(isPublicPath("/")).toBe(false);
   expect(isPublicPath("/content")).toBe(false);
   expect(isPublicPath("/login-extra")).toBe(false);
+  expect(isPublicPath("/forgotish")).toBe(false);
+  expect(isPublicPath("/reset-password")).toBe(false);
   expect(isPublicPath("/reset-passwordish")).toBe(false);
 });
 

@@ -52,6 +52,15 @@ it("renders username and password fields", () => {
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
+it("shows a confirmation after a password reset", () => {
+  navigation.searchParams = new URLSearchParams("reset=success");
+  stubSession(401);
+  render(<LoginPage />);
+
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toBe("Your password has been reset. Sign in with your new password.");
+});
+
 it("posts credentials to the API login endpoint with cookies and redirects home", async () => {
   const fetchMock = stubFetch(
     async () => new Response(JSON.stringify({ user: {} }), { status: 200 }),
