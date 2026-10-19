@@ -23,6 +23,7 @@ import {
   CreateTableCommand,
   DescribeTableCommand,
   UpdateTimeToLiveCommand,
+  type CreateTableCommandInput,
 } from "@aws-sdk/client-dynamodb";
 import { build } from "esbuild";
 
@@ -349,11 +350,78 @@ export async function ensureResetTokensTable(ctx: DeployContext): Promise<string
   throw new Error(`Timed out waiting for DynamoDB table ${resetTokensTable}`);
 }
 
+async function ensureApiTable(
+  ctx: DeployContext,
+  tableName: string,
+  input: Pick<CreateTableCommandInput, "AttributeDefinitions" | "KeySchema">,
+): Promise<string> {
+  try {
+    const existing = await ctx.clients.dynamodb.send(
+      new DescribeTableCommand({ TableName: tableName }),
+    );
+    if (existing.Table?.TableStatus === "ACTIVE") {
+      return tableName;
+    }
+  } catch (error) {
+    if (!isAwsError(error, "ResourceNotFoundException")) {
+      throw error;
+    }
+  }
+
+  if (ctx.dryRun) {
+    ctx.log(`would create DynamoDB table ${tableName}`);
+    return tableName;
+  }
+
+  ctx.log(`creating DynamoDB table ${tableName}`);
+  await ctx.clients.dynamodb.send(
+    new CreateTableCommand({
+      TableName: tableName,
+      AttributeDefinitions: input.AttributeDefinitions,
+      KeySchema: input.KeySchema,
+      BillingMode: "PAY_PER_REQUEST",
+    }),
+  );
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const result = await ctx.clients.dynamodb.send(
+      new DescribeTableCommand({ TableName: tableName }),
+    );
+    if (result.Table?.TableStatus === "ACTIVE") {
+      return tableName;
+    }
+    await sleep(2000);
+  }
+  throw new Error(`Timed out waiting for DynamoDB table ${tableName}`);
+}
+
+export function ensureContentTypesTable(ctx: DeployContext): Promise<string> {
+  return ensureApiTable(ctx, apiNames(ctx.appPrefix).contentTypesTable, {
+    AttributeDefinitions: [{ AttributeName: "slug", AttributeType: "S" }],
+    KeySchema: [{ AttributeName: "slug", KeyType: "HASH" }],
+  });
+}
+
+export function ensureContentEntriesTable(ctx: DeployContext): Promise<string> {
+  return ensureApiTable(ctx, apiNames(ctx.appPrefix).contentEntriesTable, {
+    AttributeDefinitions: [
+      { AttributeName: "type", AttributeType: "S" },
+      { AttributeName: "id", AttributeType: "S" },
+    ],
+    KeySchema: [
+      { AttributeName: "type", KeyType: "HASH" },
+      { AttributeName: "id", KeyType: "RANGE" },
+    ],
+  });
+}
+
 export function apiEnv(ctx: DeployContext, jwtSecret: string): Record<string, string> {
   const names = apiNames(ctx.appPrefix);
   return {
     USERS_TABLE_NAME: names.usersTable,
     RESET_TOKENS_TABLE_NAME: names.resetTokensTable,
+    CONTENT_TYPES_TABLE_NAME: names.contentTypesTable,
+    CONTENT_ENTRIES_TABLE_NAME: names.contentEntriesTable,
     MEDIA_BUCKET_NAME: ctx.mediaBucket,
     JWT_SECRET: jwtSecret,
     ...(ctx.emailFrom
@@ -399,6 +467,8 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
   const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
   const tableName = await ensureUsersTable(ctx);
   const resetTokensTable = await ensureResetTokensTable(ctx);
+  const contentTypesTable = await ensureContentTypesTable(ctx);
+  const contentEntriesTable = await ensureContentEntriesTable(ctx);
   if (ctx.emailFrom) {
     await ensureEmailIdentity(ctx, ctx.emailFrom);
   }
@@ -419,6 +489,8 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${tableName}`,
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${tableName}/index/*`,
         `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${resetTokensTable}`,
+        `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${contentTypesTable}`,
+        `arn:aws:dynamodb:${ctx.region}:${ctx.accountId}:table/${contentEntriesTable}`,
       ],
     },
     {

@@ -6,6 +6,8 @@ export interface ApiResourceNames {
   api: string;
   usersTable: string;
   resetTokensTable: string;
+  contentTypesTable: string;
+  contentEntriesTable: string;
 }
 
 export interface AdminResourceNames {
@@ -39,6 +41,8 @@ export function apiNames(appPrefix: string): ApiResourceNames {
     api: `${appPrefix}-api`,
     usersTable: `${appPrefix}-users`,
     resetTokensTable: `${appPrefix}-reset-tokens`,
+    contentTypesTable: `${appPrefix}-content-types`,
+    contentEntriesTable: `${appPrefix}-content-entries`,
   };
 }
 

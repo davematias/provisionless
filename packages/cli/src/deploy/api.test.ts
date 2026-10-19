@@ -32,6 +32,8 @@ import {
   configureApiAuth,
   emailPolicyStatements,
   ensureApiDomain,
+  ensureContentEntriesTable,
+  ensureContentTypesTable,
   ensureHttpApi,
   ensureResetTokensTable,
   ensureUsersTable,
@@ -210,6 +212,61 @@ it("reuses an existing reset tokens table", async () => {
 
   expect(tableName).toBe("provisionless-reset-tokens");
   expect(created).toBe(false);
+});
+
+it("creates the content types table with a slug key", async () => {
+  const commands: unknown[] = [];
+  let describeCalls = 0;
+  const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeTableCommand) {
+      describeCalls += 1;
+      if (describeCalls === 1) {
+        const error = new Error("missing");
+        error.name = "ResourceNotFoundException";
+        throw error;
+      }
+      return { Table: { TableStatus: "ACTIVE" } };
+    }
+    return {};
+  });
+
+  const tableName = await ensureContentTypesTable(ctx);
+
+  expect(tableName).toBe("provisionless-content-types");
+  const create = commands.find((command) => command instanceof CreateTableCommand) as
+    | { input: TableInput }
+    | undefined;
+  expect(create?.input.KeySchema).toEqual([{ AttributeName: "slug", KeyType: "HASH" }]);
+});
+
+it("creates the content entries table with type and id keys", async () => {
+  const commands: unknown[] = [];
+  let describeCalls = 0;
+  const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeTableCommand) {
+      describeCalls += 1;
+      if (describeCalls === 1) {
+        const error = new Error("missing");
+        error.name = "ResourceNotFoundException";
+        throw error;
+      }
+      return { Table: { TableStatus: "ACTIVE" } };
+    }
+    return {};
+  });
+
+  const tableName = await ensureContentEntriesTable(ctx);
+
+  expect(tableName).toBe("provisionless-content-entries");
+  const create = commands.find((command) => command instanceof CreateTableCommand) as
+    | { input: TableInput }
+    | undefined;
+  expect(create?.input.KeySchema).toEqual([
+    { AttributeName: "type", KeyType: "HASH" },
+    { AttributeName: "id", KeyType: "RANGE" },
+  ]);
 });
 
 const CERT_ARN = "arn:aws:acm:us-east-1:111122223333:certificate/api";
@@ -530,6 +587,12 @@ it("configures the API function env for cross-site sign-in", async () => {
   expect(update?.input.Environment?.Variables?.USERS_TABLE_NAME).toBe("provisionless-users");
   expect(update?.input.Environment?.Variables?.RESET_TOKENS_TABLE_NAME).toBe(
     "provisionless-reset-tokens",
+  );
+  expect(update?.input.Environment?.Variables?.CONTENT_TYPES_TABLE_NAME).toBe(
+    "provisionless-content-types",
+  );
+  expect(update?.input.Environment?.Variables?.CONTENT_ENTRIES_TABLE_NAME).toBe(
+    "provisionless-content-entries",
   );
   expect(update?.input.Environment?.Variables?.ADMIN_BASE_URL).toBe("https://admin.example.com");
 });
