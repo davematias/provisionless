@@ -1,4 +1,5 @@
-import type { MiddlewareHandler } from "hono";
+import type { User } from "@provisionless/core";
+import type { Context, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 
 import { verifySession, type SessionPayload } from "./jwt.ts";
@@ -8,13 +9,39 @@ function passwordMatches(session: SessionPayload, passwordChangedAt: string): bo
   return (session.passwordChangedAt ?? "") === passwordChangedAt;
 }
 
+async function authenticate(
+  c: Context<AppEnv>,
+  deps: SessionDependencies,
+): Promise<User | undefined> {
+  const token = getCookie(c, SESSION_COOKIE);
+  const session = token ? await verifySession(token, deps.jwtSecret) : undefined;
+  const user = session ? await deps.users.getUser(session.username) : undefined;
+  if (!session || !user || !user.enabled || !passwordMatches(session, user.passwordChangedAt)) {
+    return undefined;
+  }
+  return user;
+}
+
 export function requireAuth(deps: SessionDependencies): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
-    const token = getCookie(c, SESSION_COOKIE);
-    const session = token ? await verifySession(token, deps.jwtSecret) : undefined;
-    const user = session ? await deps.users.getUser(session.username) : undefined;
-    if (!session || !user || !user.enabled || !passwordMatches(session, user.passwordChangedAt)) {
+    const user = await authenticate(c, deps);
+    if (!user) {
       return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    c.set("user", user);
+    await next();
+  };
+}
+
+export function requireAdmin(deps: SessionDependencies): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const user = await authenticate(c, deps);
+    if (!user) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    if (!user.isAdmin) {
+      return c.json({ error: "Forbidden" }, 403);
     }
 
     c.set("user", user);

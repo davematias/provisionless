@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 
 import { registerAuthRoutes, type AuthDependencies } from "./auth/routes.ts";
 import type { AppEnv } from "./auth/session.ts";
+import { registerUserRoutes } from "./users/routes.ts";
 
 export interface AppDependencies extends AuthDependencies {
   corsAllowOrigins?: string[];
@@ -29,6 +30,7 @@ export function createApp(deps: AppDependencies): Hono<AppEnv> {
 
   app.get("/health", (c) => c.json({ status: "ok" }));
   registerAuthRoutes(app, deps);
+  registerUserRoutes(app, deps);
 
   return app;
 }

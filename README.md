@@ -52,13 +52,17 @@ password change with `401`.
 | `POST /auth/reset/request` | Public    | Create a single-use password reset token (same response whether or not the user exists). |
 | `POST /auth/reset/link`    | Admin     | Create a single-use reset link to share manually, without sending email.                 |
 | `POST /auth/reset/confirm` | Public    | Consume a reset token and set a new password, invalidating existing sessions.            |
+| `GET /users`               | Admin     | List users without password data.                                                        |
+| `POST /users`              | Admin     | Create a user with a hashed password.                                                    |
+| `PATCH /users/:username`   | Admin     | Enable/disable a user, toggle `isAdmin`, or update profile fields.                       |
 
 Protected routes read the authenticated user from the request context (`c.get("user")`); register new
-routes behind `requireAuth` so they inherit the same checks. Password reset tokens are stored hashed
-in DynamoDB and consumed atomically, so each token works once and expires; a successful reset bumps
-the user's `passwordChangedAt`, which invalidates their existing sessions. Reset links are emailed
-through SES when `EMAIL_FROM_ADDRESS` is configured and logged otherwise; both paths link to the
-admin app's `/reset` page.
+routes behind `requireAuth` so they inherit the same checks. Admin-only routes (reset links and user
+management) use `requireAdmin`, which adds a `403` for non-admins. Password reset tokens are stored
+hashed in DynamoDB and consumed atomically, so each token works once and expires; a successful reset
+bumps the user's `passwordChangedAt`, which invalidates their existing sessions. Reset links are
+emailed through SES when `EMAIL_FROM_ADDRESS` is configured and logged otherwise; both paths link to
+the admin app's `/reset` page.
 
 ## Continuous integration
 
