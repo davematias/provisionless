@@ -15,14 +15,17 @@ Options:
 - `--region <region>` — AWS region to deploy into (defaults to `AWS_REGION` or `us-east-1`).
 - `--prefix <prefix>` — app prefix used to name resources; prompted when omitted.
 - `--media-bucket <name>` — media bucket name (prompted when omitted); the app prefix is prepended.
+- `--email-from <address>` — verified SES sender address used for password reset emails; when omitted
+  the API logs reset links instead of sending mail. Saved in `.provisionless`.
 - `--admin-domain <domain>` / `--api-domain <domain>` — custom domains for the admin site and API
   (prompted when omitted; leave blank to deploy without a custom domain).
 - `--hosted-zone <id-or-name>` — Route 53 hosted zone used to create DNS records automatically;
   without it the CLI prints the records to add yourself.
 - `--no-domains` — skip custom-domain configuration entirely and deploy without domains; useful for
   non-interactive runs (scripts and CI) when you do not want custom domains.
-- `--test-user-username <username>` / `--test-user-password <password>` — supply the test user's
-  credentials non-interactively (prompted when omitted).
+- `--test-user-username <username>` / `--test-user-password <password>` /
+  `--test-user-email <email>` — supply the test user's credentials and email address
+  non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
 
 ### Undeploy
@@ -110,8 +113,26 @@ deployed API as `MEDIA_BUCKET_NAME`. Re-running deploy reuses the existing bucke
 
 ### Test user
 
-After a successful deploy the CLI asks for a username and password and seeds exactly one admin test
-user into the deployed users table, then prints the credentials so you can log in immediately.
+After a successful deploy the CLI asks for a username, password, and email address and seeds exactly
+one admin test user into the deployed users table, then prints the credentials so you can log in
+immediately. The email address is used by password reset emails.
+
+### Password reset email
+
+Pass `--email-from no-reply@example.com` to send password reset emails through Amazon SES. The CLI
+creates (or reuses) the SES identity for that address, grants the API permission to send from it, and
+passes `EMAIL_FROM_ADDRESS` plus the deployed admin URL to the API so reset links point at the right
+site. The address is saved in `.provisionless` and reused by later deploys.
+
+SES starts in the sandbox: every sender and every recipient must be verified before mail is
+delivered. Verify the sending address using the email SES sends when the identity is created (or in
+the SES console), and verify test recipients too. Request production access in SES before relying on
+reset emails for real users.
+
+Without `--email-from` the API uses a logging provider: reset links are written to the API logs
+instead of being emailed, which keeps the flow usable in local development. Users need an email
+address for SES delivery; users created before email was required log a warning until one is set.
+Undeploy leaves SES identities in place because they can be shared with other applications.
 
 `deploy` bundles the API, builds the admin website with
 [OpenNext](https://opennext.js.org/aws), and provisions:

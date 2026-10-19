@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { isValidEmailAddress } from "@provisionless/core";
+
 import { isValidAppPrefix } from "../aws/names.ts";
 import type { Logger } from "../util/log.ts";
 import { confirm, type Ask } from "../util/prompt.ts";
@@ -18,6 +20,7 @@ export interface ProvisionlessConfig {
   adminCertificateArn?: string;
   apiCertificateArn?: string;
   jwtSecret?: string;
+  emailFrom?: string;
 }
 
 export function configPath(repoRoot: string): string {
@@ -235,4 +238,33 @@ export async function resolveAppPrefix(options: ResolveAppPrefixOptions): Promis
     options.log(`saved app prefix to ${CONFIG_FILE}`);
   }
   return answer;
+}
+
+export interface ResolveEmailFromOptions {
+  repoRoot: string;
+  emailFrom?: string;
+  log: Logger;
+  persist: boolean;
+}
+
+/**
+ * Resolves the SES sender address. There is no prompt: an empty result means reset emails are
+ * disabled and the API logs the reset link instead.
+ */
+export function resolveEmailFrom(options: ResolveEmailFromOptions): string | undefined {
+  const existing = loadConfig(options.repoRoot);
+  const value = (options.emailFrom ?? existing?.emailFrom)?.trim();
+
+  if (!value) {
+    options.log("no email sender configured: password reset links will be logged by the API");
+    return undefined;
+  }
+  if (!isValidEmailAddress(value)) {
+    throw new Error(`Invalid email sender "${value}". Use an email address.`);
+  }
+
+  if (options.emailFrom !== undefined && options.persist) {
+    updateConfig(options.repoRoot, { emailFrom: value });
+  }
+  return value;
 }

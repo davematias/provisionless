@@ -38,6 +38,7 @@ beforeEach(async () => {
     username: "ada",
     id: "11111111-1111-1111-1111-111111111111",
     passwordHash: await hashPassword("lovelace"),
+    email: "ada@example.com",
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",
@@ -51,12 +52,12 @@ beforeEach(async () => {
 interface Harness {
   app: Hono;
   resetTokens: MemoryResetTokens;
-  delivered: { username: string; token: string }[];
+  delivered: { username: string; email: string; token: string }[];
 }
 
 function buildApp(): Harness {
   const resetTokens = new MemoryResetTokens();
-  const delivered: { username: string; token: string }[] = [];
+  const delivered: { username: string; email: string; token: string }[] = [];
   const app = createApp({
     users: {
       getUser: async (username) => (active.username === username ? active : undefined),
@@ -72,8 +73,8 @@ function buildApp(): Harness {
       },
     },
     resetTokens,
-    deliverReset: (username, token) => {
-      delivered.push({ username, token });
+    deliverReset: (user, token) => {
+      delivered.push({ username: user.username, email: user.email, token });
     },
     jwtSecret: "test-secret",
     secureCookies: false,
@@ -109,7 +110,7 @@ it("creates and delivers a reset token for an existing user", async () => {
 
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toEqual({ ok: true });
-  expect(delivered).toEqual([{ username: "ada", token: "token-1" }]);
+  expect(delivered).toEqual([{ username: "ada", email: "ada@example.com", token: "token-1" }]);
 });
 
 it("returns the same response for an unknown username without creating a token", async () => {
@@ -120,7 +121,7 @@ it("returns the same response for an unknown username without creating a token",
 
   expect(unknown.status).toBe(known.status);
   await expect(unknown.json()).resolves.toEqual(await known.json());
-  expect(delivered).toEqual([{ username: "ada", token: "token-1" }]);
+  expect(delivered).toEqual([{ username: "ada", email: "ada@example.com", token: "token-1" }]);
 });
 
 it("requires a username", async () => {

@@ -11,12 +11,17 @@ export function registerDeployCommand(program: Command): void {
     .option("-r, --region <region>", "AWS region (prompted when omitted)")
     .option("-p, --prefix <prefix>", "App prefix used to name resources (prompted when omitted)")
     .option("--media-bucket <name>", "Media bucket name (prompted when omitted)")
+    .option(
+      "--email-from <address>",
+      "Verified SES sender address (optional; enables reset emails)",
+    )
     .option("--admin-domain <domain>", "Custom domain for the admin site (prompted when omitted)")
     .option("--api-domain <domain>", "Custom domain for the API (prompted when omitted)")
     .option("--hosted-zone <id-or-name>", "Route 53 hosted zone for automatic DNS records")
     .option("--no-domains", "Skip custom domain configuration and deploy without domains")
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
+    .option("--test-user-email <email>", "Test user email (prompted when omitted)")
     .option("--dry-run", "Report what would be created or updated without modifying AWS", false)
     .addHelpText("after", formatCommandHelp(COMMAND_HELP.deploy))
     .action(
@@ -24,24 +29,28 @@ export function registerDeployCommand(program: Command): void {
         region: string;
         prefix?: string;
         mediaBucket?: string;
+        emailFrom?: string;
         adminDomain?: string;
         apiDomain?: string;
         hostedZone?: string;
         domains: boolean;
         testUserUsername?: string;
         testUserPassword?: string;
+        testUserEmail?: string;
         dryRun: boolean;
       }) => {
         await deploy({
           region: options.region,
           prefix: options.prefix,
           mediaBucket: options.mediaBucket,
+          emailFrom: options.emailFrom,
           adminDomain: options.adminDomain,
           apiDomain: options.apiDomain,
           hostedZone: options.hostedZone,
           noDomains: options.domains === false,
           testUserUsername: options.testUserUsername,
           testUserPassword: options.testUserPassword,
+          testUserEmail: options.testUserEmail,
           dryRun: options.dryRun,
         });
       },

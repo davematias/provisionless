@@ -38,6 +38,7 @@ import { resolveHostedZoneId, upsertAliasRecords, type AliasTarget } from "../aw
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipFile } from "../util/zip.ts";
 import type { DeployContext } from "./context.ts";
+import { ensureEmailIdentity } from "./email.ts";
 
 async function bundleApi(repoRoot: string): Promise<Buffer> {
   const outfile = join(mkdtempSync(join(tmpdir(), "provisionless-api-")), "index.mjs");
@@ -355,7 +356,23 @@ export function apiEnv(ctx: DeployContext, jwtSecret: string): Record<string, st
     RESET_TOKENS_TABLE_NAME: names.resetTokensTable,
     MEDIA_BUCKET_NAME: ctx.mediaBucket,
     JWT_SECRET: jwtSecret,
+    ...(ctx.emailFrom
+      ? { EMAIL_FROM_ADDRESS: ctx.emailFrom, EMAIL_FROM_NAME: "Provisionless" }
+      : {}),
   };
+}
+
+export function emailPolicyStatements(ctx: DeployContext): unknown[] {
+  if (!ctx.emailFrom) {
+    return [];
+  }
+  return [
+    {
+      Effect: "Allow",
+      Action: ["ses:SendEmail"],
+      Resource: `arn:aws:ses:${ctx.region}:${ctx.accountId}:identity/${ctx.emailFrom}`,
+    },
+  ];
 }
 
 export async function configureApiAuth(
@@ -372,6 +389,7 @@ export async function configureApiAuth(
     ...apiEnv(ctx, jwtSecret),
     AUTH_ALLOW_ORIGINS: allowedOrigin,
     AUTH_COOKIE_SAMESITE: "None",
+    ADMIN_BASE_URL: allowedOrigin,
   });
 }
 
@@ -381,6 +399,9 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
   const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
   const tableName = await ensureUsersTable(ctx);
   const resetTokensTable = await ensureResetTokensTable(ctx);
+  if (ctx.emailFrom) {
+    await ensureEmailIdentity(ctx, ctx.emailFrom);
+  }
   const roleArn = await ensureLambdaRole(ctx, names.role);
 
   await putRolePolicy(ctx, names.role, `${ctx.appPrefix}-api`, [
@@ -410,6 +431,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
       Action: ["s3:ListBucket"],
       Resource: `arn:aws:s3:::${ctx.mediaBucket}`,
     },
+    ...emailPolicyStatements(ctx),
   ]);
 
   const functionArn = await deployFunction(ctx, {
@@ -420,12 +442,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
     description: `Provisionless API (${ctx.appPrefix})`,
     timeout: 30,
     memorySize: 1024,
-    env: {
-      USERS_TABLE_NAME: tableName,
-      RESET_TOKENS_TABLE_NAME: resetTokensTable,
-      MEDIA_BUCKET_NAME: ctx.mediaBucket,
-      JWT_SECRET: jwtSecret,
-    },
+    env: apiEnv(ctx, jwtSecret),
   });
   const url = await ensureHttpApi(ctx, functionArn);
   ctx.log(`API deployed: ${url}`);

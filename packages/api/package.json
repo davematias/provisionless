@@ -24,6 +24,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1135.0",
     "@provisionless/core": "*",
     "hono": "4.13.8",
     "jose": "6.2.12"

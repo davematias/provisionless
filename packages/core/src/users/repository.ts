@@ -11,6 +11,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 
 import type { NewUser, User } from "./model.ts";
+import { isValidEmailAddress } from "./model.ts";
 import { hashPassword } from "./password.ts";
 
 export class UsernameTakenError extends Error {
@@ -21,6 +22,7 @@ export class UsernameTakenError extends Error {
 }
 
 export interface UpdateUserInput {
+  email?: string;
   firstName?: string;
   lastName?: string;
   pictureUrl?: string;
@@ -53,10 +55,15 @@ export class UserRepository {
 
   async createUser(input: NewUser): Promise<User> {
     const now = new Date().toISOString();
+    const email = input.email.trim();
+    if (!isValidEmailAddress(email)) {
+      throw new Error(`Invalid user email "${input.email}"`);
+    }
     const user: User = {
       username: input.username,
       id: randomUUID(),
       passwordHash: await hashPassword(input.password),
+      email,
       isAdmin: input.isAdmin,
       firstName: input.firstName,
       lastName: input.lastName,
@@ -115,6 +122,13 @@ export class UserRepository {
   async updateUser(username: string, changes: UpdateUserInput): Promise<User> {
     const now = new Date().toISOString();
     const fields: Record<string, unknown> = { updatedAt: now };
+    if (changes.email !== undefined) {
+      const email = changes.email.trim();
+      if (!isValidEmailAddress(email)) {
+        throw new Error(`Invalid user email "${changes.email}"`);
+      }
+      fields.email = email;
+    }
     if (changes.firstName !== undefined) fields.firstName = changes.firstName;
     if (changes.lastName !== undefined) fields.lastName = changes.lastName;
     if (changes.pictureUrl !== undefined) fields.pictureUrl = changes.pictureUrl;
