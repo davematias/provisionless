@@ -56,6 +56,21 @@ email, so it works when SES is not configured. Non-admin callers get `403`, unkn
 `404` without creating a token, and the returned link has the same one-hour, single-use behavior as
 an emailed link.
 
+### User management
+
+These routes require an admin session (`401` unauthenticated, `403` non-admin):
+
+- `GET /users` returns `{ "users": [...] }` sorted by username.
+- `POST /users` creates a user from `{ "username", "password", "email", "firstName", "lastName",
+"isAdmin"?, "enabled"? }` and returns `201` with `{ "user": ... }`. `isAdmin` defaults to `false`
+  and `enabled` to `true`; duplicate usernames return `409` and invalid fields return `400`.
+- `PATCH /users/:username` updates any of `enabled`, `isAdmin`, `email`, `firstName`, or `lastName`
+  and returns `{ "user": ... }`. Unknown users return `404`.
+
+Every response uses the public user shape, so password hashes and `passwordChangedAt` are never
+returned. Passwords are hashed with the same code used by login and reset; administrators set a
+password directly when creating a user.
+
 ### Example route
 
 `GET /health` returns:

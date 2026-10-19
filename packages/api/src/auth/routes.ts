@@ -2,15 +2,15 @@ import { toPublicUser, verifyPassword, type User } from "@provisionless/core";
 import type { Hono } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 
+import type { UserManagementStore } from "../users/store.ts";
 import { signSession } from "./jwt.ts";
-import { requireAuth } from "./middleware.ts";
+import { requireAdmin, requireAuth } from "./middleware.ts";
 import { buildResetUrl, DEFAULT_ADMIN_BASE_URL } from "./reset-link.ts";
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   type AppEnv,
   type SessionDependencies,
-  type UserStore,
 } from "./session.ts";
 
 export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "./session.ts";
@@ -21,9 +21,7 @@ export interface ResetTokenStore {
 }
 
 export interface AuthDependencies extends SessionDependencies {
-  users: UserStore & {
-    updateUser(username: string, changes: { password: string }): Promise<unknown>;
-  };
+  users: UserManagementStore;
   resetTokens: ResetTokenStore;
   deliverReset?: (user: User, token: string) => void | Promise<void>;
   adminBaseUrl?: string;
@@ -126,12 +124,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
     return c.json({ ok: true });
   });
 
-  app.post("/auth/reset/link", requireAuth(deps), async (c) => {
-    const user = c.get("user");
-    if (!user.isAdmin) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-
+  app.post("/auth/reset/link", requireAdmin(deps), async (c) => {
     const username = extractUsername(await c.req.json().catch(() => undefined));
     if (!username) {
       return c.json({ error: "username is required" }, 400);
