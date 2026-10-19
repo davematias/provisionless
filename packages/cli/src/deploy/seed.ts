@@ -1,6 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { UserRepository } from "@provisionless/core";
+import { UserRepository, isValidEmailAddress } from "@provisionless/core";
 
 import type { Logger } from "../util/log.ts";
 import type { Ask } from "../util/prompt.ts";
@@ -8,6 +8,7 @@ import type { Ask } from "../util/prompt.ts";
 export interface TestUserCredentials {
   username: string;
   password: string;
+  email: string;
 }
 
 export interface SeedTestUserOptions {
@@ -18,13 +19,18 @@ export interface SeedTestUserOptions {
   client?: DynamoDBDocumentClient;
   username?: string;
   password?: string;
+  email?: string;
 }
 
 export async function seedTestUser(options: SeedTestUserOptions): Promise<TestUserCredentials> {
   const username = options.username ?? (await options.ask("Test user username: ")).trim();
   const password = options.password ?? (await options.ask("Test user password: ")).trim();
+  const email = (options.email ?? (await options.ask("Test user email: "))).trim();
   if (!username || !password) {
     throw new Error("A username and password are required to seed the test user");
+  }
+  if (!isValidEmailAddress(email)) {
+    throw new Error(`Invalid test user email "${email}". Use an email address.`);
   }
 
   const client =
@@ -33,12 +39,13 @@ export async function seedTestUser(options: SeedTestUserOptions): Promise<TestUs
 
   const existing = await repository.getUser(username);
   if (existing) {
-    await repository.updateUser(username, { password, enabled: true, isAdmin: true });
+    await repository.updateUser(username, { password, email, enabled: true, isAdmin: true });
     options.log(`updated test user "${username}"`);
   } else {
     await repository.createUser({
       username,
       password,
+      email,
       isAdmin: true,
       firstName: "Test",
       lastName: "User",
@@ -47,5 +54,5 @@ export async function seedTestUser(options: SeedTestUserOptions): Promise<TestUs
     options.log(`created test user "${username}"`);
   }
 
-  return { username, password };
+  return { username, password, email };
 }

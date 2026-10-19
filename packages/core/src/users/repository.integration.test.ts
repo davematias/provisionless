@@ -63,12 +63,14 @@ it("creates a user and stores only a password hash", async () => {
   const user = await repository.createUser({
     username: "ada",
     password: "lovelace",
+    email: "ada@example.com",
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",
   });
 
   expect(user.username).toBe("ada");
+  expect(user.email).toBe("ada@example.com");
   expect(await verifyPassword("lovelace", user.passwordHash)).toBe(true);
 
   const stored = await repository.getUser("ada");
@@ -81,6 +83,7 @@ it("rejects a duplicate username", async () => {
     repository.createUser({
       username: "ada",
       password: "again",
+      email: "ada@example.com",
       isAdmin: false,
       firstName: "Ada",
       lastName: "Lovelace",
@@ -92,6 +95,7 @@ it("fetches a user by id through the secondary index", async () => {
   const created = await repository.createUser({
     username: "grace",
     password: "hopper",
+    email: "grace@example.com",
     isAdmin: false,
     firstName: "Grace",
     lastName: "Hopper",

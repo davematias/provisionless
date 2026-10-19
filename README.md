@@ -55,7 +55,9 @@ password change with `401`.
 Protected routes read the authenticated user from the request context (`c.get("user")`); register new
 routes behind `requireAuth` so they inherit the same checks. Password reset tokens are stored hashed
 in DynamoDB and consumed atomically, so each token works once and expires; a successful reset bumps
-the user's `passwordChangedAt`, which invalidates their existing sessions.
+the user's `passwordChangedAt`, which invalidates their existing sessions. Reset links are emailed
+through SES when `EMAIL_FROM_ADDRESS` is configured and logged otherwise; both paths link to the
+admin app's `/reset` page.
 
 ## Continuous integration
 

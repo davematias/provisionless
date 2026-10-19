@@ -13,6 +13,7 @@ beforeAll(async () => {
     username: "ada",
     id: "11111111-1111-1111-1111-111111111111",
     passwordHash: await hashPassword("lovelace"),
+    email: "ada@example.com",
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",

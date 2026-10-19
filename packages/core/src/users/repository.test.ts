@@ -20,11 +20,13 @@ it("creates a user with a hashed password and timestamps", async () => {
   const user = await repository.createUser({
     username: "ada",
     password: "lovelace",
+    email: "ada@example.com",
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",
   });
 
+  expect(user.email).toBe("ada@example.com");
   expect(user.id).toHaveLength(36);
   expect(user.passwordHash).not.toBe("lovelace");
   expect(await verifyPassword("lovelace", user.passwordHash)).toBe(true);
@@ -50,11 +52,33 @@ it("rejects a duplicate username", async () => {
     repository.createUser({
       username: "ada",
       password: "x",
+      email: "ada@example.com",
       isAdmin: false,
       firstName: "Ada",
       lastName: "Lovelace",
     }),
   ).rejects.toBeInstanceOf(UsernameTakenError);
+});
+
+it("rejects an invalid email address on create", async () => {
+  const commands: unknown[] = [];
+  const repository = createRepository(async (command) => {
+    commands.push(command);
+    return {};
+  });
+
+  await expect(
+    repository.createUser({
+      username: "ada",
+      password: "lovelace",
+      email: "not-an-email",
+      isAdmin: true,
+      firstName: "Ada",
+      lastName: "Lovelace",
+    }),
+  ).rejects.toThrow(/email/i);
+
+  expect(commands).toHaveLength(0);
 });
 
 it("fetches a user by username", async () => {
@@ -95,6 +119,36 @@ it("sets updatedAt when updating a user", async () => {
   const user = await repository.updateUser("ada", { firstName: "Ada" });
 
   expect(user.updatedAt).toBeDefined();
+});
+
+it("sets email when updating a user", async () => {
+  const updates: UpdateCommand[] = [];
+  const repository = createRepository(async (command) => {
+    if (command instanceof UpdateCommand) {
+      updates.push(command);
+      return { Attributes: { username: "ada" } };
+    }
+    return {};
+  });
+
+  await repository.updateUser("ada", { email: "ada@example.com" });
+
+  const fields = Object.values(updates[0]?.input.ExpressionAttributeNames ?? {});
+  expect(fields).toContain("email");
+});
+
+it("rejects an invalid email address on update", async () => {
+  const updates: UpdateCommand[] = [];
+  const repository = createRepository(async (command) => {
+    if (command instanceof UpdateCommand) {
+      updates.push(command);
+      return { Attributes: { username: "ada" } };
+    }
+    return {};
+  });
+
+  await expect(repository.updateUser("ada", { email: "not-an-email" })).rejects.toThrow(/email/i);
+  expect(updates).toHaveLength(0);
 });
 
 it("bumps passwordChangedAt when the password changes", async () => {

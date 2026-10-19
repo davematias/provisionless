@@ -11,6 +11,7 @@ beforeAll(async () => {
   active = {
     id: "11111111-1111-1111-1111-111111111111",
     username: "ada",
+    email: "ada@example.com",
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",

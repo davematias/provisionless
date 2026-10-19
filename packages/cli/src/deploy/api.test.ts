@@ -28,7 +28,9 @@ import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
 import {
+  apiEnv,
   configureApiAuth,
+  emailPolicyStatements,
   ensureApiDomain,
   ensureHttpApi,
   ensureResetTokensTable,
@@ -50,6 +52,7 @@ function createContext(apiGatewaySend: (command: unknown) => Promise<unknown>): 
     dryRun: false,
     repoRoot: ".",
     appPrefix: "provisionless",
+    mediaBucket: "provisionless-media",
     log: () => undefined,
     clients,
   };
@@ -528,6 +531,32 @@ it("configures the API function env for cross-site sign-in", async () => {
   expect(update?.input.Environment?.Variables?.RESET_TOKENS_TABLE_NAME).toBe(
     "provisionless-reset-tokens",
   );
+  expect(update?.input.Environment?.Variables?.ADMIN_BASE_URL).toBe("https://admin.example.com");
+});
+
+it("sets the SES sender and admin URL in the API environment when email is configured", () => {
+  const ctx = createContext(async () => ({}));
+  ctx.emailFrom = "no-reply@example.com";
+
+  const env = apiEnv(ctx, "secret");
+
+  expect(env.EMAIL_FROM_ADDRESS).toBe("no-reply@example.com");
+  expect(env.EMAIL_FROM_NAME).toBe("Provisionless");
+});
+
+it("grants the API permission to send email from the configured identity", () => {
+  const ctx = createContext(async () => ({}));
+  expect(emailPolicyStatements(ctx)).toEqual([]);
+
+  ctx.emailFrom = "no-reply@example.com";
+
+  expect(emailPolicyStatements(ctx)).toEqual([
+    {
+      Effect: "Allow",
+      Action: ["ses:SendEmail"],
+      Resource: "arn:aws:ses:us-east-1:111122223333:identity/no-reply@example.com",
+    },
+  ]);
 });
 
 it("only reports the cross-site configuration during a dry run", async () => {

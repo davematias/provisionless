@@ -14,6 +14,7 @@ beforeAll(async () => {
     isAdmin: true,
     firstName: "Ada",
     lastName: "Lovelace",
+    email: "ada@example.com",
     enabled: true,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

@@ -8,6 +8,7 @@ export interface DeployContext {
   repoRoot: string;
   appPrefix: string;
   mediaBucket: string;
+  emailFrom?: string;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
@@ -24,10 +25,12 @@ export interface DeployOptions {
   dryRun: boolean;
   prefix?: string;
   mediaBucket?: string;
+  emailFrom?: string;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
   noDomains?: boolean;
   testUserUsername?: string;
   testUserPassword?: string;
+  testUserEmail?: string;
 }

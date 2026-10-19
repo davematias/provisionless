@@ -5,6 +5,7 @@ import { apiNames } from "../aws/names.ts";
 import {
   resolveAppPrefix,
   resolveDomains,
+  resolveEmailFrom,
   resolveJwtSecret,
   resolveRegion,
 } from "../config/config.ts";
@@ -57,6 +58,12 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     });
 
     const jwtSecret = resolveJwtSecret(repoRoot, !options.dryRun);
+    const emailFrom = resolveEmailFrom({
+      repoRoot,
+      emailFrom: options.emailFrom,
+      log,
+      persist: !options.dryRun,
+    });
 
     const domains = await resolveDomains({
       repoRoot,
@@ -85,6 +92,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       repoRoot,
       appPrefix,
       mediaBucket,
+      emailFrom,
       adminDomain: domains.adminDomain,
       apiDomain: domains.apiDomain,
       hostedZone: domains.hostedZone,
@@ -121,8 +129,10 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
         log,
         username: options.testUserUsername,
         password: options.testUserPassword,
+        email: options.testUserEmail,
       });
       log(`test user login: ${testUser.username} / ${testUser.password}`);
+      log(`test user email: ${testUser.email}`);
     }
 
     return { apiUrl, adminUrl: admin.url, testUser };

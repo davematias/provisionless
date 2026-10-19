@@ -1,4 +1,4 @@
-import { toPublicUser, verifyPassword } from "@provisionless/core";
+import { toPublicUser, verifyPassword, type User } from "@provisionless/core";
 import type { Hono } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 
@@ -24,7 +24,7 @@ export interface AuthDependencies extends SessionDependencies {
     updateUser(username: string, changes: { password: string }): Promise<unknown>;
   };
   resetTokens: ResetTokenStore;
-  deliverReset?: (username: string, token: string) => void | Promise<void>;
+  deliverReset?: (user: User, token: string) => void | Promise<void>;
   secureCookies?: boolean;
   cookieSameSite?: "Lax" | "None";
 }
@@ -119,7 +119,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
     const user = await deps.users.getUser(username);
     if (user) {
       const token = await deps.resetTokens.create(user.username);
-      await deps.deliverReset?.(user.username, token);
+      await deps.deliverReset?.(user, token);
     }
     return c.json({ ok: true });
   });

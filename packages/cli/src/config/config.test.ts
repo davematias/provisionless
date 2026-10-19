@@ -8,6 +8,7 @@ import {
   loadConfig,
   resolveAppPrefix,
   resolveDomains,
+  resolveEmailFrom,
   resolveRegion,
   saveConfig,
 } from "./config.ts";
@@ -242,4 +243,61 @@ it("does not persist during a dry run", async () => {
 
   expect(prefix).toBe("demo");
   expect(loadConfig(repo)).toBeUndefined();
+});
+
+it("saves and reuses the SES sender address", () => {
+  const repo = tempRepo();
+
+  const emailFrom = resolveEmailFrom({
+    repoRoot: repo,
+    emailFrom: "no-reply@example.com",
+    log: noop,
+    persist: true,
+  });
+
+  expect(emailFrom).toBe("no-reply@example.com");
+  expect(loadConfig(repo)?.emailFrom).toBe("no-reply@example.com");
+
+  expect(resolveEmailFrom({ repoRoot: repo, log: noop, persist: true })).toBe(
+    "no-reply@example.com",
+  );
+});
+
+it("leaves email delivery disabled when no sender is configured", () => {
+  const logs: string[] = [];
+
+  const emailFrom = resolveEmailFrom({
+    repoRoot: tempRepo(),
+    log: (message) => logs.push(message),
+    persist: true,
+  });
+
+  expect(emailFrom).toBeUndefined();
+  expect(logs.some((message) => message.includes("password reset links will be logged"))).toBe(
+    true,
+  );
+});
+
+it("rejects an invalid SES sender address", () => {
+  expect(() =>
+    resolveEmailFrom({
+      repoRoot: tempRepo(),
+      emailFrom: "not-an-email",
+      log: noop,
+      persist: true,
+    }),
+  ).toThrow();
+});
+
+it("does not persist the SES sender during a dry run", () => {
+  const repo = tempRepo();
+
+  resolveEmailFrom({
+    repoRoot: repo,
+    emailFrom: "no-reply@example.com",
+    log: noop,
+    persist: false,
+  });
+
+  expect(loadConfig(repo)?.emailFrom).toBeUndefined();
 });
