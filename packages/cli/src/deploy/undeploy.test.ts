@@ -79,6 +79,14 @@ it("keeps data when asked", async () => {
       (message) => message.startsWith("keeping data:") && message.includes("demo-users"),
     ),
   ).toBe(true);
+  expect(
+    messages.some(
+      (message) =>
+        message.startsWith("keeping data:") &&
+        message.includes("demo-content-types") &&
+        message.includes("demo-content-entries"),
+    ),
+  ).toBe(true);
   expect(messages.some((message) => message.includes("would delete DynamoDB table"))).toBe(false);
   expect(messages.some((message) => message.includes("would empty and delete S3 bucket"))).toBe(
     false,
@@ -318,4 +326,6 @@ it("deletes the users and reset token tables when the data is removed", async ()
     .map((command) => command.input.TableName);
   expect(deleted).toContain("demo-users");
   expect(deleted).toContain("demo-reset-tokens");
+  expect(deleted).toContain("demo-content-types");
+  expect(deleted).toContain("demo-content-entries");
 });

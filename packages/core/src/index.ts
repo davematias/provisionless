@@ -1,3 +1,28 @@
+export {
+  ContentEntryRepository,
+  ContentEntryNotFoundError,
+  createContentEntryRepository,
+} from "./content/entry-repository.ts";
+export type { ContentEntryRepositoryOptions } from "./content/entry-repository.ts";
+export {
+  CONTENT_FIELD_TYPES,
+  ContentEntryValidationError,
+  ContentTypeValidationError,
+  validateContentEntryValues,
+  validateContentType,
+} from "./content/model.ts";
+export type {
+  ContentEntry,
+  ContentEntryValue,
+  ContentEntryValues,
+  ContentField,
+  ContentFieldType,
+  ContentType,
+  ContentTypeInput,
+  ContentValidationError,
+} from "./content/model.ts";
+export { ContentTypeRepository, createContentTypeRepository } from "./content/type-repository.ts";
+export type { ContentTypeRepositoryOptions } from "./content/type-repository.ts";
 export { createResetTokenRepository, ResetTokenRepository } from "./reset/tokens.ts";
 export type { ResetTokenRepositoryOptions } from "./reset/tokens.ts";
 export { toPublicUser, isValidEmailAddress } from "./users/model.ts";

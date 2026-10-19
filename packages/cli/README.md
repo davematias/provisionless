@@ -137,7 +137,8 @@ Undeploy leaves SES identities in place because they can be shared with other ap
 `deploy` bundles the API, builds the admin website with
 [OpenNext](https://opennext.js.org/aws), and provisions:
 
-- **API** — a Lambda function behind an API Gateway HTTP API.
+- **API** — a Lambda function behind an API Gateway HTTP API, plus DynamoDB tables for users,
+  password reset tokens, content types, and content entries.
 - **Admin** — an S3 bucket (static assets and incremental cache), a DynamoDB tag cache, a
   FIFO SQS revalidation queue, three Lambda functions (SSR, image optimization, and
   revalidation), and a CloudFront distribution in front of the Lambda and S3 origins.

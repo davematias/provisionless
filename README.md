@@ -64,6 +64,18 @@ bumps the user's `passwordChangedAt`, which invalidates their existing sessions.
 emailed through SES when `EMAIL_FROM_ADDRESS` is configured and logged otherwise; both paths link to
 the admin app's `/reset` page.
 
+## Content model
+
+`@provisionless/core` provides the content model used by the API:
+
+- **Content types** are identified by a slug and store a name plus fields. Each field has a name, a
+  type (`string` or `boolean`), and an optional `required` flag.
+- **Content entries** belong to a content type, have a UUID, and store values keyed by field name.
+- `ContentTypeRepository` and `ContentEntryRepository` validate schemas and values before writing.
+  Entry validation rejects missing required fields, wrong value types, and unknown fields.
+- `provisionless deploy` provisions `<prefix>-content-types` and `<prefix>-content-entries` tables,
+  keyed by `slug` and by `type` + `id` respectively; undeploy removes them unless data is kept.
+
 ## Continuous integration
 
 GitHub Actions runs typecheck, lint, unit tests, integration tests, the formatting check, and the
