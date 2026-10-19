@@ -71,6 +71,27 @@ Every response uses the public user shape, so password hashes and `passwordChang
 returned. Passwords are hashed with the same code used by login and reset; administrators set a
 password directly when creating a user.
 
+### Content types and entries
+
+Content schemas are managed by admins:
+
+- `GET /content-types/:slug` returns `{ "contentType": ... }`.
+- `PUT /content-types/:slug` creates or replaces a schema from `{ "name": "...", "fields": [{ "name":
+"...", "type": "string" | "boolean", "required"?: true }] }`.
+- `DELETE /content-types/:slug` deletes the schema and every entry that belongs to it.
+
+Content entries require a valid session (any role):
+
+- `GET /content/:slug` lists `{ "entries": [...] }`.
+- `GET /content/:slug/:id` returns `{ "entry": ... }`.
+- `POST /content/:slug` creates an entry from `{ "values": { ... } }` and returns `201`.
+- `PUT /content/:slug/:id` replaces an entry's values.
+- `DELETE /content/:slug/:id` removes an entry.
+
+Values are validated against the stored schema before write operations: missing required fields,
+wrong value types, and unknown fields return `400` with an `errors` array. Unknown content types or
+entries return `404`.
+
 ### Example route
 
 `GET /health` returns:

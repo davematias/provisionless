@@ -1,5 +1,10 @@
 import { serve } from "@hono/node-server";
-import { createResetTokenRepository, createUserRepository } from "@provisionless/core";
+import {
+  createContentEntryRepository,
+  createContentTypeRepository,
+  createResetTokenRepository,
+  createUserRepository,
+} from "@provisionless/core";
 
 import { createApp, parseAllowOrigins, parseCookieSameSite } from "./app.ts";
 import { DEFAULT_ADMIN_BASE_URL } from "./auth/reset-link.ts";
@@ -12,6 +17,12 @@ const app = createApp({
   users: createUserRepository(process.env.USERS_TABLE_NAME ?? "provisionless-users"),
   resetTokens: createResetTokenRepository(
     process.env.RESET_TOKENS_TABLE_NAME ?? "provisionless-reset-tokens",
+  ),
+  contentTypes: createContentTypeRepository(
+    process.env.CONTENT_TYPES_TABLE_NAME ?? "provisionless-content-types",
+  ),
+  contentEntries: createContentEntryRepository(
+    process.env.CONTENT_ENTRIES_TABLE_NAME ?? "provisionless-content-entries",
   ),
   deliverReset: createResetEmailDelivery({
     provider: emailProvider,

@@ -1,4 +1,9 @@
-import { createResetTokenRepository, createUserRepository } from "@provisionless/core";
+import {
+  createContentEntryRepository,
+  createContentTypeRepository,
+  createResetTokenRepository,
+  createUserRepository,
+} from "@provisionless/core";
 import { handle } from "hono/aws-lambda";
 
 import { createApp, parseAllowOrigins, parseCookieSameSite } from "./app.ts";
@@ -12,6 +17,12 @@ const app = createApp({
   users: createUserRepository(process.env.USERS_TABLE_NAME ?? "provisionless-users"),
   resetTokens: createResetTokenRepository(
     process.env.RESET_TOKENS_TABLE_NAME ?? "provisionless-reset-tokens",
+  ),
+  contentTypes: createContentTypeRepository(
+    process.env.CONTENT_TYPES_TABLE_NAME ?? "provisionless-content-types",
+  ),
+  contentEntries: createContentEntryRepository(
+    process.env.CONTENT_ENTRIES_TABLE_NAME ?? "provisionless-content-entries",
   ),
   deliverReset: createResetEmailDelivery({
     provider: emailProvider,
