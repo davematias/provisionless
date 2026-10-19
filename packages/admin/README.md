@@ -26,6 +26,17 @@ PORT=3001 AUTH_ALLOW_ORIGINS=http://localhost:3000 npm run dev --workspace=@prov
 `npm run build:lambda` reads `NEXT_PUBLIC_API_URL` as well; the deploy CLI passes the deployed API URL
 into the admin build automatically, and configures the API to accept the deployed admin origin.
 
+## Password reset
+
+`/forgot` collects a username and posts it to `${NEXT_PUBLIC_API_URL}/auth/reset/request`. It always
+shows the same confirmation, whether or not the account exists, so the page does not reveal which
+usernames are registered.
+
+`/reset?token=...` collects a new password and confirmation, posts them to
+`${NEXT_PUBLIC_API_URL}/auth/reset/confirm`, and on success sends the visitor to
+`/login?reset=success`, where the login page shows a confirmation. Invalid or expired tokens get a
+clear error with a link back to `/forgot`.
+
 ## Route protection
 
 Admin pages require a session. Because the admin and API are served from different sites and the
@@ -35,7 +46,7 @@ the browser: `AuthGuard` (in `src/components/auth-guard.tsx`, wrapping the root 
 session. Unauthenticated visitors are sent to `/login?from=<requested path>`, and the login page
 returns them there after signing in; already-authenticated visitors to `/login` are sent to the
 requested page (or the admin home). The public routes are the allowlist in
-`src/lib/session.ts` (`PUBLIC_PATHS`): `/login` and `/reset-password`.
+`src/lib/session.ts` (`PUBLIC_PATHS`): `/login`, `/forgot`, and `/reset`.
 
 ## Design system
 

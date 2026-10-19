@@ -1,6 +1,6 @@
 export const DEFAULT_REDIRECT = "/";
 
-export const PUBLIC_PATHS = ["/login", "/reset-password"];
+export const PUBLIC_PATHS = ["/login", "/forgot", "/reset"];
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((base) => pathname === base || pathname.startsWith(`${base}/`));

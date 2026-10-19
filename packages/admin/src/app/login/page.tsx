@@ -21,6 +21,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = resolveRedirect(searchParams.get("from"));
+  const resetConfirmed = searchParams.get("reset") === "success";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | undefined>();
@@ -73,6 +74,13 @@ function LoginForm() {
           <CardDescription>Sign in to manage your content.</CardDescription>
         </CardHeader>
         <CardContent>
+          {resetConfirmed ? (
+            <Alert className="mb-4">
+              <AlertDescription>
+                Your password has been reset. Sign in with your new password.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
