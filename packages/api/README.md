@@ -93,6 +93,12 @@ Values are validated against the stored schema before write operations: missing 
 wrong value types, and unknown fields return `400` with an `errors` array. Unknown content types or
 entries return `404`.
 
+### OpenAPI
+
+`GET /openapi.json` returns an OpenAPI 3.0 document describing every route, including request and
+response schemas and the session-cookie security scheme (`provisionless_session`). Admin-only routes
+are marked as requiring the cookie.
+
 ### Example route
 
 `GET /health` returns:
