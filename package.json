@@ -20,9 +20,23 @@
     "typecheck": "turbo run typecheck",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check": "turbo run lint typecheck test && npm run format:check"
+    "check": "turbo run lint typecheck test && npm run format:check",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "oxfmt --write",
+      "oxlint --fix"
+    ],
+    "*.{json,jsonc,md,mdx,css,yml,yaml}": [
+      "oxfmt --write"
+    ]
   },
   "devDependencies": {
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
     "turbo": "2.10.12",

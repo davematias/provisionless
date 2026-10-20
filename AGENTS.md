@@ -80,6 +80,10 @@ to `main`. Reproduce the CI run locally with `npm run check && npm run build`.
 Do not leave finished work uncommitted: commit it on a feature branch, push the branch, and open a
 pull request against `main`.
 
+Commit messages and pull request titles use Conventional Commits (`type(scope)?: description`) with
+an optional scope. Husky's `commit-msg` and `pre-commit` hooks enforce this and run lint/format on
+staged files; do not bypass them with `--no-verify`.
+
 ## Common commands
 
 ```bash
