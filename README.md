@@ -46,6 +46,7 @@ password change with `401`.
 | Route                         | Access    | Purpose                                                                                  |
 | ----------------------------- | --------- | ---------------------------------------------------------------------------------------- |
 | `GET /health`                 | Public    | Liveness check.                                                                          |
+| `GET /openapi.json`           | Public    | OpenAPI 3.0 document describing the API.                                                 |
 | `POST /auth/login`            | Public    | Verify credentials and set the session cookie.                                           |
 | `POST /auth/logout`           | Public    | Clear the session cookie.                                                                |
 | `GET /auth/me`                | Protected | Return the current user and refresh the session cookie.                                  |
