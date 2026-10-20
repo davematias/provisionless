@@ -23,7 +23,7 @@ import {
   UpdateUserRequestSchema,
   UserResponseSchema,
   UsersResponseSchema,
-} from "../openapi/schemas.ts";
+} from "./schemas.ts";
 import type { UserManagementStore } from "./store.ts";
 
 export interface UserRoutesDependencies extends SessionDependencies {

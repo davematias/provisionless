@@ -9,6 +9,7 @@ import { describeRoute } from "hono-openapi";
 
 import { requireAdmin, requireAuth } from "../auth/middleware.ts";
 import type { AppEnv, SessionDependencies } from "../auth/session.ts";
+import { OkResponseSchema } from "../openapi/common.ts";
 import {
   errorResponse,
   jsonRequest,
@@ -24,8 +25,7 @@ import {
   ContentTypeRequestSchema,
   ContentTypeResponseSchema,
   ContentTypesResponseSchema,
-  OkResponseSchema,
-} from "../openapi/schemas.ts";
+} from "./schemas.ts";
 import type { ContentEntryStore, ContentTypeStore } from "./store.ts";
 
 export interface ContentRoutesDependencies extends SessionDependencies {

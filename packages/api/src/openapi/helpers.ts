@@ -1,6 +1,6 @@
 import { resolver } from "hono-openapi";
 
-import { ErrorResponseSchema, ValidationErrorSchema } from "./schemas.ts";
+import { ErrorResponseSchema, ValidationErrorSchema } from "./common.ts";
 
 type Schema = Parameters<typeof resolver>[0];
 

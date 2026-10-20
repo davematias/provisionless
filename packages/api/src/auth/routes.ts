@@ -3,6 +3,7 @@ import type { Hono } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 
+import { OkResponseSchema } from "../openapi/common.ts";
 import {
   errorResponse,
   jsonRequest,
@@ -10,16 +11,15 @@ import {
   SECURITY,
   validationErrorResponse,
 } from "../openapi/helpers.ts";
+import { UserResponseSchema } from "../users/schemas.ts";
+import type { UserManagementStore } from "../users/store.ts";
 import {
   LoginRequestSchema,
-  OkResponseSchema,
   ResetConfirmSchema,
   ResetLinkRequestSchema,
   ResetLinkResponseSchema,
   ResetRequestSchema,
-  UserResponseSchema,
-} from "../openapi/schemas.ts";
-import type { UserManagementStore } from "../users/store.ts";
+} from "./schemas.ts";
 import { signSession } from "./jwt.ts";
 import { requireAdmin, requireAuth } from "./middleware.ts";
 import { buildResetUrl, DEFAULT_ADMIN_BASE_URL } from "./reset-link.ts";

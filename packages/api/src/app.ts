@@ -1,14 +1,16 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { describeRoute, openAPIRouteHandler } from "hono-openapi";
+import { z } from "zod";
 
 import { registerAuthRoutes, type AuthDependencies } from "./auth/routes.ts";
 import { SESSION_COOKIE, type AppEnv } from "./auth/session.ts";
 import { registerContentRoutes } from "./content/routes.ts";
 import type { ContentEntryStore, ContentTypeStore } from "./content/store.ts";
 import { jsonResponse } from "./openapi/helpers.ts";
-import { HealthResponseSchema } from "./openapi/schemas.ts";
 import { registerUserRoutes } from "./users/routes.ts";
+
+const HealthResponseSchema = z.object({ status: z.string() });
 
 export interface AppDependencies extends AuthDependencies {
   contentTypes: ContentTypeStore;
