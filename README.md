@@ -55,6 +55,7 @@ password change with `401`.
 | `GET /users`                  | Admin     | List users without password data.                                                        |
 | `POST /users`                 | Admin     | Create a user with a hashed password.                                                    |
 | `PATCH /users/:username`      | Admin     | Enable/disable a user, toggle `isAdmin`, or update profile fields.                       |
+| `GET /content-types`          | Admin     | List content schemas sorted by slug.                                                     |
 | `GET /content-types/:slug`    | Admin     | Read a content schema.                                                                   |
 | `PUT /content-types/:slug`    | Admin     | Create or replace a content schema.                                                      |
 | `DELETE /content-types/:slug` | Admin     | Delete a content schema and all of its entries.                                          |

@@ -75,6 +75,7 @@ password directly when creating a user.
 
 Content schemas are managed by admins:
 
+- `GET /content-types` lists `{ "contentTypes": [...] }` sorted by slug.
 - `GET /content-types/:slug` returns `{ "contentType": ... }`.
 - `PUT /content-types/:slug` creates or replaces a schema from `{ "name": "...", "fields": [{ "name":
 "...", "type": "string" | "boolean", "required"?: true }] }`.

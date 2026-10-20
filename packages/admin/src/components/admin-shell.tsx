@@ -7,6 +7,7 @@ import UserMenu from "./user-menu.tsx";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard" },
+  { href: "/content-types", label: "Content" },
   { href: "/reset-links", label: "Reset links" },
 ] as const;
 

@@ -55,6 +55,21 @@ returns them there after signing in; already-authenticated visitors to `/login` 
 requested page (or the admin home). The public routes are the allowlist in
 `src/lib/session.ts` (`PUBLIC_PATHS`): `/login`, `/forgot`, and `/reset`.
 
+## Content management
+
+The sidebar's **Content** link opens `/content-types`, which lists the schemas defined through the
+content API (`GET /content-types`).
+
+- `/content-types/new` and `/content-types/:slug/edit` use a dynamic field editor: add or remove
+  fields, choose `string` or `boolean`, mark fields required, and save the schema with `PUT
+/content-types/:slug`.
+- `/content/:slug` lists entries for a type in a table and links to the new/edit entry forms.
+- `/content/:slug/new` and `/content/:slug/:id` render a form from the schema: a text input for
+  string fields and a checkbox for booleans. Saves call `POST /content/:slug` or `PUT
+/content/:slug/:id`.
+
+API validation errors are shown in the forms with their field names.
+
 ## Design system
 
 The admin UI is built on the shared [`@provisionless/design-system`](../design-system)

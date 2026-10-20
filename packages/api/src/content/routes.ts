@@ -27,6 +27,13 @@ async function findContentType(
 }
 
 export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDependencies): void {
+  app.get("/content-types", requireAdmin(deps), async (c) => {
+    const contentTypes = (await deps.contentTypes.list()).sort((left, right) =>
+      left.slug.localeCompare(right.slug),
+    );
+    return c.json({ contentTypes });
+  });
+
   app.get("/content-types/:slug", requireAdmin(deps), async (c) => {
     const contentType = await findContentType(deps, c.req.param("slug"));
     if (!contentType) {

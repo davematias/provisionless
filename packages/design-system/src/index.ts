@@ -29,6 +29,16 @@ export {
 } from "./components/ui/dropdown-menu.tsx";
 export { Input } from "./components/ui/input.tsx";
 export { Label } from "./components/ui/label.tsx";
+export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./components/ui/table.tsx";
 export { default as ThemeProvider, useTheme } from "./components/theme-provider.tsx";
 export { default as ThemeToggle } from "./components/theme-toggle.tsx";
 export { default as ThemeScript } from "./components/theme-script.tsx";
