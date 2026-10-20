@@ -240,9 +240,24 @@ it("requires a session for content but not an admin, and an admin for schemas", 
 
   expect((await request(undefined, "GET", "/content/post")).status).toBe(401);
   expect((await request(memberCookie, "GET", "/content/post")).status).toBe(200);
+  expect((await request(memberCookie, "GET", "/content-types")).status).toBe(403);
   expect((await request(memberCookie, "GET", "/content-types/post")).status).toBe(403);
   expect(
     (await request(memberCookie, "PUT", "/content-types/post", { name: "x", fields: [] })).status,
   ).toBe(403);
   expect((await request(adminCookie, "GET", "/content-types/post")).status).toBe(200);
+});
+
+it("lists schemas sorted by slug for admins", async () => {
+  const cookie = await createSchema("post");
+  await request(cookie, "PUT", "/content-types/page", {
+    name: "Page",
+    fields: [{ name: "title", type: "string" }],
+  });
+
+  const response = await request(cookie, "GET", "/content-types");
+
+  expect(response.status).toBe(200);
+  const body = (await response.json()) as { contentTypes: { slug: string }[] };
+  expect(body.contentTypes.map((contentType) => contentType.slug)).toEqual(["page", "post"]);
 });
