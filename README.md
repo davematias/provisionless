@@ -58,6 +58,42 @@ being accepted and must be re-reviewed:
 ]
 ```
 
+### Secret scanning
+
+CI runs [gitleaks](https://github.com/gitleaks/gitleaks) over the commits in every pull request and
+push to `main` with the default rule set, pinned to gitleaks 8.30.1. The `Secret scan` job fails when
+it detects a credential. Reviewed false positives live in `.gitleaks.toml`, which extends the default
+rules:
+
+```toml
+[[allowlists]]
+description = "Example placeholder key in the documentation"
+condition = "AND"
+paths = ['''docs/.*\.md''']
+regexes = ['''example-not-a-real-key''']
+```
+
+Keep exclusions narrow — a specific path and, when possible, the exact value — and record why the
+value is not a credential. Removing or replacing the value is always better than allowlisting it.
+
+Run the same scan locally with Docker:
+
+```bash
+docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+  git --config /repo/.gitleaks.toml /repo
+```
+
+#### If a secret is detected
+
+1. Treat the value as compromised. Revoke or rotate it with the provider immediately, then update the
+   deployment secret or configuration with the replacement.
+2. Remove the value from the branch. Rewriting history does not undo the exposure: assume anything
+   pushed to the repository is public.
+3. Check the provider's audit logs for use of the credential after it was exposed, and revoke it
+   again if it was already used.
+4. If the finding is a false positive, add a documented entry to `.gitleaks.toml`; never add a real
+   credential to the allowlist.
+
 ## API routes
 
 The API (`@provisionless/api`) exposes a small Hono app. Routes are either public or protected by
