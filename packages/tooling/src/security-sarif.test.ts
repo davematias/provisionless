@@ -6,7 +6,12 @@ import { describe, expect, it } from "vitest";
 import type { SarifLog, SarifResult } from "./security-sarif.ts";
 import { collectBlockingFindings, collectFindings, loadSarifLogs } from "./security-sarif.ts";
 
-function result(level: string | undefined, ruleId = "js/example", line = 12): SarifResult {
+function result(
+  level: string | undefined,
+  ruleId = "js/example",
+  line = 12,
+  securitySeverity?: number,
+): SarifResult {
   return {
     ruleId,
     ...(level === undefined ? {} : { level }),
@@ -19,6 +24,9 @@ function result(level: string | undefined, ruleId = "js/example", line = 12): Sa
         },
       },
     ],
+    ...(securitySeverity === undefined
+      ? {}
+      : { properties: { "security-severity": String(securitySeverity) } }),
   };
 }
 
@@ -43,6 +51,7 @@ describe("collectBlockingFindings", () => {
       {
         ruleId: "js/code-injection",
         level: "error",
+        securitySeverity: null,
         message: "Finding from js/code-injection",
         location: "packages/api/src/app.ts:7",
       },
@@ -71,6 +80,7 @@ describe("collectBlockingFindings", () => {
       {
         ruleId: "unknown-rule",
         level: "error",
+        securitySeverity: null,
         message: "No message",
         location: "unknown location",
       },
@@ -79,6 +89,23 @@ describe("collectBlockingFindings", () => {
 
   it("returns nothing for a clean report", () => {
     expect(collectBlockingFindings([{ runs: [{ results: [] }] }])).toEqual([]);
+  });
+
+  it("blocks warning-level results with high or critical security severity", () => {
+    const logs: SarifLog[] = [
+      {
+        runs: [
+          {
+            results: [
+              result("warning", "js/xss", 3, 7.8),
+              result("warning", "js/incomplete-url-substring-sanitization", 9, 5.3),
+            ],
+          },
+        ],
+      },
+    ];
+
+    expect(collectBlockingFindings(logs).map((finding) => finding.ruleId)).toEqual(["js/xss"]);
   });
 });
 

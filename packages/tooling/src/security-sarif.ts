@@ -13,6 +13,7 @@ export interface SarifResult {
   level?: string;
   message?: { text?: string };
   locations?: Array<{ physicalLocation?: SarifPhysicalLocation }>;
+  properties?: Record<string, unknown>;
 }
 
 export interface SarifRun {
@@ -28,6 +29,8 @@ export interface SarifFinding {
   ruleId: string;
   /** SARIF severity, defaulting to `warning` when the report omits it. */
   level: string;
+  /** CVSS-based security severity from CodeQL, when the result has one. */
+  securitySeverity: number | null;
   /** Human-readable finding description. */
   message: string;
   /** File and line where the finding was reported. */
@@ -49,6 +52,7 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
         findings.push({
           ruleId: result.ruleId ?? "unknown-rule",
           level: result.level ?? "warning",
+          securitySeverity: readSecuritySeverity(result),
           message: result.message?.text ?? "No message",
           location: line === undefined ? uri : `${uri}:${line}`,
         });
@@ -59,12 +63,23 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
   return findings;
 }
 
+function readSecuritySeverity(result: SarifResult): number | null {
+  const raw = result.properties?.["security-severity"];
+  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) ? value : null;
+}
+
 /**
- * Collect results that should fail the static analysis job: explicit
- * error-level findings only. Lower severities are informational.
+ * A result blocks when CodeQL marks it as an error or when its CVSS-based
+ * security severity is high or critical (7.0 or above).
  */
+export function isBlockingFinding(finding: SarifFinding): boolean {
+  return finding.level === "error" || (finding.securitySeverity ?? 0) >= 7;
+}
+
+/** Collect results that should fail the static analysis job. */
 export function collectBlockingFindings(logs: SarifLog[]): SarifFinding[] {
-  return collectFindings(logs).filter((finding) => finding.level === "error");
+  return collectFindings(logs).filter(isBlockingFinding);
 }
 
 function sarifFilesIn(path: string): string[] {
@@ -104,7 +119,7 @@ function main(): void {
   }
 
   const findings = collectFindings(logs);
-  const blocking = findings.filter((finding) => finding.level === "error");
+  const blocking = findings.filter(isBlockingFinding);
   const lowerSeverity = findings.length - blocking.length;
 
   if (blocking.length === 0) {
@@ -116,8 +131,12 @@ function main(): void {
     if (lowerSeverity > 0) {
       console.warn("Lower-severity findings (not blocking):");
       for (const finding of findings) {
-        if (finding.level === "error") continue;
-        console.warn(`  ${finding.level.padEnd(7)} ${finding.ruleId} at ${finding.location}`);
+        if (isBlockingFinding(finding)) continue;
+        const severity =
+          finding.securitySeverity === null ? "" : ` (severity ${finding.securitySeverity})`;
+        console.warn(
+          `  ${finding.level.padEnd(7)} ${finding.ruleId}${severity} at ${finding.location}`,
+        );
       }
     }
     return;
