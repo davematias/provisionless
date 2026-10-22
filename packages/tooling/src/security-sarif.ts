@@ -10,6 +10,7 @@ interface SarifPhysicalLocation {
 
 export interface SarifResult {
   ruleId?: string;
+  rule?: { id?: string; index?: number; toolComponent?: { index?: number } };
   level?: string;
   message?: { text?: string };
   locations?: Array<{ physicalLocation?: SarifPhysicalLocation }>;
@@ -21,8 +22,12 @@ export interface SarifRule {
   properties?: Record<string, unknown>;
 }
 
+export interface SarifToolComponent {
+  rules?: SarifRule[];
+}
+
 export interface SarifRun {
-  tool?: { driver?: { rules?: SarifRule[] } };
+  tool?: { driver?: SarifToolComponent; extensions?: SarifToolComponent[] };
   results?: SarifResult[];
 }
 
@@ -52,9 +57,11 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
   for (const log of logs) {
     for (const run of log.runs ?? []) {
       const ruleSeverities = new Map<string, number>();
-      for (const rule of run.tool?.driver?.rules ?? []) {
-        const severity = readSecuritySeverity(rule);
-        if (rule.id !== undefined && severity !== null) ruleSeverities.set(rule.id, severity);
+      for (const component of [run.tool?.driver, ...(run.tool?.extensions ?? [])]) {
+        for (const rule of component?.rules ?? []) {
+          const severity = readSecuritySeverity(rule);
+          if (rule.id !== undefined && severity !== null) ruleSeverities.set(rule.id, severity);
+        }
       }
       for (const result of run.results ?? []) {
         const physicalLocation = result.locations?.[0]?.physicalLocation;
@@ -64,8 +71,7 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
           ruleId: result.ruleId ?? "unknown-rule",
           level: result.level ?? "warning",
           securitySeverity:
-            readSecuritySeverity(result) ??
-            (result.ruleId === undefined ? null : (ruleSeverities.get(result.ruleId) ?? null)),
+            readSecuritySeverity(result) ?? severityFromRule(result, run, ruleSeverities),
           message: result.message?.text ?? "No message",
           location: line === undefined ? uri : `${uri}:${line}`,
         });
@@ -74,6 +80,22 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
   }
 
   return findings;
+}
+
+function severityFromRule(
+  result: SarifResult,
+  run: SarifRun,
+  ruleSeverities: Map<string, number>,
+): number | null {
+  const components = [run.tool?.driver, ...(run.tool?.extensions ?? [])];
+  const componentIndex = result.rule?.toolComponent?.index ?? 0;
+  const ruleIndex = result.rule?.index;
+  const referenced =
+    ruleIndex === undefined ? undefined : components[componentIndex]?.rules?.[ruleIndex];
+  const referencedSeverity = referenced === undefined ? null : readSecuritySeverity(referenced);
+  if (referencedSeverity !== null) return referencedSeverity;
+  const id = result.ruleId ?? result.rule?.id;
+  return id === undefined ? null : (ruleSeverities.get(id) ?? null);
 }
 
 function readSecuritySeverity(item: { properties?: Record<string, unknown> }): number | null {

@@ -118,6 +118,31 @@ describe("collectBlockingFindings", () => {
 
     expect(collectBlockingFindings(logs).map((finding) => finding.ruleId)).toEqual(["js/xss"]);
   });
+
+  it("resolves severity through a rule index in an extension component", () => {
+    const logs: SarifLog[] = [
+      {
+        runs: [
+          {
+            tool: {
+              driver: { rules: [] },
+              extensions: [
+                { rules: [{ id: "js/xss", properties: { "security-severity": "7.8" } }] },
+              ],
+            },
+            results: [
+              {
+                ...result("warning", "js/xss", 5),
+                rule: { id: "js/xss", index: 0, toolComponent: { index: 1 } },
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    expect(collectBlockingFindings(logs)).toHaveLength(1);
+  });
 });
 
 describe("collectFindings", () => {
