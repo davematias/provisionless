@@ -131,6 +131,10 @@ function main(): void {
     return;
   }
 
+  const debugRules = logs.flatMap(
+    (log) => log.runs?.flatMap((run) => run.tool?.driver?.rules ?? []) ?? [],
+  );
+  console.log("DEBUG rules:", JSON.stringify(debugRules.slice(0, 2), null, 2));
   const findings = collectFindings(logs);
   const blocking = findings.filter(isBlockingFinding);
   const lowerSeverity = findings.length - blocking.length;
