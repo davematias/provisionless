@@ -1,0 +1,16 @@
+# Secret scanning configuration for gitleaks (https://github.com/gitleaks/gitleaks).
+#
+# The default rule set is used. Reviewed false positives are recorded below with
+# a narrow scope and an explanation so the list stays auditable.
+
+[extend]
+useDefault = true
+
+# Add one [[allowlists]] block per reviewed false positive. Use `condition = "AND"`
+# so both the path and the exact value have to match; the default condition is "OR".
+#
+# [[allowlists]]
+# description = "Example placeholder AWS key in the documentation"
+# condition = "AND"
+# paths = ['''README\.md''']
+# regexes = ['''example-not-a-real-key''']
