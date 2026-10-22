@@ -1,0 +1,9 @@
+# CodeQL configuration for the Static analysis CI job.
+#
+# Test files assert on log text, which the URL-sanitization queries flag as
+# incomplete sanitization even though no URL is being validated. They stay
+# covered by lint, typecheck, unit tests, and the secret scan.
+
+paths-ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"

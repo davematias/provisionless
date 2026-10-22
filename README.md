@@ -103,7 +103,9 @@ so high-confidence findings such as XSS, injection, SSRF, unsafe eval, and path 
 merge. Lower-severity results are listed in the job log without failing.
 
 The report is not uploaded to GitHub code scanning because that requires GitHub Advanced Security for
-private repositories; the SARIF file produced during the job is the source of truth.
+private repositories; the SARIF file produced during the job is the source of truth. Test files are
+excluded from the analysis (`.github/codeql/codeql-config.yml`) because their log assertions trip
+URL-sanitization heuristics; lint, typecheck, unit tests, and the secret scan still cover them.
 
 Reproduce the scan locally with the [CodeQL CLI](https://docs.github.com/en/code-security/codeql-cli):
 
