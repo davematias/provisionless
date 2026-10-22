@@ -94,6 +94,28 @@ docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
 4. If the finding is a false positive, add a documented entry to `.gitleaks.toml`; never add a real
    credential to the allowlist.
 
+### Static analysis
+
+CI runs [CodeQL](https://codeql.github.com/) over the JavaScript and TypeScript sources on every pull
+request and push to `main`, using the pinned `security-extended` query suite. The `Static analysis`
+job uploads the SARIF report to code scanning and then fails when the report contains an error-level
+result, so high-confidence findings such as XSS, injection, SSRF, unsafe eval, and path traversal
+block the merge. Lower-severity findings appear in code scanning without failing the job.
+
+Reproduce the scan locally with the [CodeQL CLI](https://docs.github.com/en/code-security/codeql-cli):
+
+```bash
+mkdir -p codeql-results
+codeql database create codeql-db --language=javascript-typescript --build-mode=none
+codeql database analyze codeql-db \
+  codeql/javascript-queries:codeql-suites/javascript-security-extended.qls \
+  --format=sarif-latest --output=codeql-results/javascript.sarif
+npm run sast:gate --workspace=@provisionless/tooling -- codeql-results
+```
+
+Dismiss false positives in the repository's code scanning alerts with a documented reason; dismissed
+findings are not reported by later analyses.
+
 ## API routes
 
 The API (`@provisionless/api`) exposes a small Hono app. Routes are either public or protected by
