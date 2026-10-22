@@ -91,14 +91,25 @@ describe("collectBlockingFindings", () => {
     expect(collectBlockingFindings([{ runs: [{ results: [] }] }])).toEqual([]);
   });
 
-  it("blocks warning-level results with high or critical security severity", () => {
+  it("blocks warning-level results with high or critical security severity from rule metadata", () => {
     const logs: SarifLog[] = [
       {
         runs: [
           {
+            tool: {
+              driver: {
+                rules: [
+                  { id: "js/xss", properties: { "security-severity": "7.8" } },
+                  {
+                    id: "js/incomplete-url-substring-sanitization",
+                    properties: { "security-severity": "5.3" },
+                  },
+                ],
+              },
+            },
             results: [
-              result("warning", "js/xss", 3, 7.8),
-              result("warning", "js/incomplete-url-substring-sanitization", 9, 5.3),
+              result("warning", "js/xss", 3),
+              result("warning", "js/incomplete-url-substring-sanitization", 9),
             ],
           },
         ],
