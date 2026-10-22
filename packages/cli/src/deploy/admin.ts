@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import type {
@@ -587,9 +587,9 @@ async function uploadDirectory(
   ctx.log(`uploading ${localDir} to s3://${bucket}/${prefix}`);
 
   const walk = async (dir: string): Promise<void> => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
         await walk(full);
         continue;
       }
