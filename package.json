@@ -14,13 +14,15 @@
   ],
   "scripts": {
     "build": "turbo run build",
-    "test": "turbo run test",
+    "audit": "node scripts/audit-dependencies.mjs",
+    "test": "turbo run test && npm run test:scripts",
+    "test:scripts": "vitest run scripts",
     "test:integration": "turbo run test:integration",
-    "lint": "turbo run lint",
+    "lint": "oxlint scripts && turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check": "turbo run lint typecheck test && npm run format:check",
+    "check": "turbo run lint typecheck test && npm run test:scripts && npm run format:check",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -41,6 +43,6 @@
     "oxlint": "1.83.0",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }
