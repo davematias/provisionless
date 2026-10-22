@@ -23,10 +23,10 @@ export interface SarifLog {
   runs?: SarifRun[];
 }
 
-export interface BlockingFinding {
+export interface SarifFinding {
   /** Rule that produced the finding. */
   ruleId: string;
-  /** SARIF severity, always `error` for blocking findings. */
+  /** SARIF severity, defaulting to `warning` when the report omits it. */
   level: string;
   /** Human-readable finding description. */
   message: string;
@@ -35,22 +35,20 @@ export interface BlockingFinding {
 }
 
 /**
- * Collect results that should fail the static analysis job. SARIF defaults a
- * missing level to `warning`, so only explicit `error` results block.
+ * Collect every reported result. SARIF defaults a missing level to `warning`.
  */
-export function collectBlockingFindings(logs: SarifLog[]): BlockingFinding[] {
-  const findings: BlockingFinding[] = [];
+export function collectFindings(logs: SarifLog[]): SarifFinding[] {
+  const findings: SarifFinding[] = [];
 
   for (const log of logs) {
     for (const run of log.runs ?? []) {
       for (const result of run.results ?? []) {
-        if (result.level !== "error") continue;
         const physicalLocation = result.locations?.[0]?.physicalLocation;
         const uri = physicalLocation?.artifactLocation?.uri ?? "unknown location";
         const line = physicalLocation?.region?.startLine;
         findings.push({
           ruleId: result.ruleId ?? "unknown-rule",
-          level: result.level,
+          level: result.level ?? "warning",
           message: result.message?.text ?? "No message",
           location: line === undefined ? uri : `${uri}:${line}`,
         });
@@ -59,6 +57,14 @@ export function collectBlockingFindings(logs: SarifLog[]): BlockingFinding[] {
   }
 
   return findings;
+}
+
+/**
+ * Collect results that should fail the static analysis job: explicit
+ * error-level findings only. Lower severities are informational.
+ */
+export function collectBlockingFindings(logs: SarifLog[]): SarifFinding[] {
+  return collectFindings(logs).filter((finding) => finding.level === "error");
 }
 
 function sarifFilesIn(path: string): string[] {
@@ -97,22 +103,25 @@ function main(): void {
     return;
   }
 
-  const findings = collectBlockingFindings(logs);
-  if (findings.length === 0) {
+  const findings = collectFindings(logs);
+  const blocking = findings.filter((finding) => finding.level === "error");
+  const lowerSeverity = findings.length - blocking.length;
+
+  if (blocking.length === 0) {
+    const suffix =
+      lowerSeverity === 0 ? "" : `; ignored ${lowerSeverity} lower-severity finding(s)`;
     console.log(
-      `Static analysis passed: no error-level findings in ${files.length} SARIF file(s).`,
+      `Static analysis passed: no error-level findings in ${files.length} SARIF file(s)${suffix}.`,
     );
     return;
   }
 
   console.error("Static analysis found error-level findings:");
-  for (const finding of findings) {
+  for (const finding of blocking) {
     console.error(`  ${finding.ruleId} at ${finding.location}`);
     console.error(`    ${finding.message}`);
   }
-  console.error(
-    "Fix the findings or dismiss them as false positives in GitHub code scanning, then re-run.",
-  );
+  console.error("Fix the findings and re-run the analysis.");
   process.exitCode = 1;
 }
 

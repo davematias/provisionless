@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { SarifLog, SarifResult } from "./security-sarif.ts";
-import { collectBlockingFindings, loadSarifLogs } from "./security-sarif.ts";
+import { collectBlockingFindings, collectFindings, loadSarifLogs } from "./security-sarif.ts";
 
 function result(level: string | undefined, ruleId = "js/example", line = 12): SarifResult {
   return {
@@ -79,6 +79,20 @@ describe("collectBlockingFindings", () => {
 
   it("returns nothing for a clean report", () => {
     expect(collectBlockingFindings([{ runs: [{ results: [] }] }])).toEqual([]);
+  });
+});
+
+describe("collectFindings", () => {
+  it("includes lower severities and defaults a missing level to warning", () => {
+    const logs: SarifLog[] = [
+      { runs: [{ results: [result("error"), result(undefined), result("note")] }] },
+    ];
+
+    expect(collectFindings(logs).map((finding) => finding.level)).toEqual([
+      "error",
+      "warning",
+      "note",
+    ]);
   });
 });
 

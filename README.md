@@ -98,9 +98,12 @@ docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
 
 CI runs [CodeQL](https://codeql.github.com/) over the JavaScript and TypeScript sources on every pull
 request and push to `main`, using the pinned `security-extended` query suite. The `Static analysis`
-job uploads the SARIF report to code scanning and then fails when the report contains an error-level
-result, so high-confidence findings such as XSS, injection, SSRF, unsafe eval, and path traversal
-block the merge. Lower-severity findings appear in code scanning without failing the job.
+job fails when the SARIF report contains an error-level result, so high-confidence findings such as
+XSS, injection, SSRF, unsafe eval, and path traversal block the merge. Lower-severity results are
+counted in the job log without failing.
+
+The report is not uploaded to GitHub code scanning because that requires GitHub Advanced Security for
+private repositories; the SARIF file produced during the job is the source of truth.
 
 Reproduce the scan locally with the [CodeQL CLI](https://docs.github.com/en/code-security/codeql-cli):
 
@@ -112,9 +115,6 @@ codeql database analyze codeql-db \
   --format=sarif-latest --output=codeql-results/javascript.sarif
 npm run sast:gate --workspace=@provisionless/tooling -- codeql-results
 ```
-
-Dismiss false positives in the repository's code scanning alerts with a documented reason; dismissed
-findings are not reported by later analyses.
 
 ## API routes
 
