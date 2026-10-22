@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { collectFindings, evaluateAuditReport } from "./audit-dependencies.mjs";
+
+import type { AuditReport } from "./audit-dependencies.ts";
+import { collectFindings, evaluateAuditReport } from "./audit-dependencies.ts";
 
 const now = new Date("2026-10-22T12:00:00Z");
 
@@ -12,7 +14,7 @@ function advisory(id: string, severity: string, title = `Advisory ${id}`) {
   };
 }
 
-function report(vulnerabilities: Record<string, unknown>) {
+function report(vulnerabilities: AuditReport["vulnerabilities"]): AuditReport {
   return { vulnerabilities };
 }
 

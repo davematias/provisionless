@@ -43,9 +43,9 @@ packages. Run a script for a single package with `npm run <script> --workspace=<
 high or critical advisory that is not listed as a reviewed exception. Moderate and low advisories are
 reported without failing. CI runs the same check on every pull request and on pushes to `main`.
 
-Reviewed exceptions live in `scripts/audit-allowlist.json`. Each entry names the affected package,
-the advisory id, a reason, and an expiry date (`YYYY-MM-DD`) after which the exception stops being
-accepted and must be re-reviewed:
+Reviewed exceptions live in `packages/tooling/audit-allowlist.json`. Each entry names the affected
+package, the advisory id, a reason, and an expiry date (`YYYY-MM-DD`) after which the exception stops
+being accepted and must be re-reviewed:
 
 ```json
 [

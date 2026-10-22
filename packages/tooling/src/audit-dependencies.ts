@@ -2,39 +2,76 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const allowlistFile = join(repoRoot, "scripts", "audit-allowlist.json");
+const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = join(packageRoot, "../..");
+const allowlistFile = join(packageRoot, "audit-allowlist.json");
 
 /** Severities that fail the audit. Lower severities are reported as warnings. */
 const blockingSeverities = new Set(["high", "critical"]);
 
-/**
- * @typedef {object} Finding
- * @property {string} package Vulnerable package name.
- * @property {string} id Advisory identifier, usually a GHSA id.
- * @property {string} title Advisory title.
- * @property {string} severity Advisory severity.
- * @property {string | null} url Advisory URL.
- */
+export interface Finding {
+  /** Vulnerable package name. */
+  package: string;
+  /** Advisory identifier, usually a GHSA id. */
+  id: string;
+  /** Advisory title. */
+  title: string;
+  /** Advisory severity. */
+  severity: string;
+  /** Advisory URL. */
+  url: string | null;
+}
 
-/**
- * @typedef {object} AuditException
- * @property {string} package Package the exception applies to.
- * @property {string} id Advisory identifier the exception applies to.
- * @property {string} reason Why the advisory is accepted.
- * @property {string} [expires] Last day (YYYY-MM-DD) the exception is valid.
- */
+export interface AuditException {
+  /** Package the exception applies to. */
+  package: string;
+  /** Advisory identifier the exception applies to. */
+  id: string;
+  /** Why the advisory is accepted. */
+  reason: string;
+  /** Last day (YYYY-MM-DD) the exception is valid. */
+  expires?: string;
+}
+
+interface AuditAdvisory {
+  source?: number;
+  url?: string;
+  title?: string;
+  severity?: string;
+}
+
+interface AuditVulnerability {
+  via?: Array<AuditAdvisory | string>;
+}
+
+export interface AuditReport {
+  error?: { summary?: string };
+  vulnerabilities?: Record<string, AuditVulnerability>;
+}
+
+interface Evaluation {
+  /** High and critical advisories without a reviewed exception. */
+  blocking: Finding[];
+  /** Moderate and low advisories without a reviewed exception. */
+  warnings: Finding[];
+  /** Advisories suppressed by the allowlist. */
+  allowed: Finding[];
+  /** Invalid, unexplained, or expired allowlist entries. */
+  errors: string[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 /**
  * Flatten an `npm audit --json` report into one finding per advisory.
  * String entries in `via` reference other vulnerable packages, not advisories.
- * @param {{ vulnerabilities?: Record<string, { via?: Array<object | string> }> }} report
- * @returns {Finding[]}
  */
-export function collectFindings(report) {
-  const findings = [];
+export function collectFindings(report: AuditReport): Finding[] {
+  const findings: Finding[] = [];
   for (const [name, vulnerability] of Object.entries(report.vulnerabilities ?? {})) {
     for (const advisory of vulnerability.via ?? []) {
       if (typeof advisory === "string") continue;
@@ -53,20 +90,25 @@ export function collectFindings(report) {
 /**
  * Drop invalid or expired exceptions and explain why, so the allowlist cannot
  * silently rot or be used without a reviewed reason.
- * @param {unknown} allowlist
- * @param {Date} now
- * @returns {{ entries: AuditException[], errors: string[] }}
  */
-export function validateAllowlist(allowlist, now = new Date()) {
+export function validateAllowlist(
+  allowlist: unknown,
+  now = new Date(),
+): { entries: AuditException[]; errors: string[] } {
   if (!Array.isArray(allowlist)) {
     return { entries: [], errors: ["The allowlist must be a JSON array."] };
   }
 
-  const entries = [];
-  const errors = [];
-  allowlist.forEach((entry, index) => {
+  const entries: AuditException[] = [];
+  const errors: string[] = [];
+  const candidates: unknown[] = allowlist;
+  candidates.forEach((entry, index) => {
     const label = `Allowlist entry ${index + 1}`;
-    if (typeof entry?.package !== "string" || entry.package.length === 0) {
+    if (!isRecord(entry)) {
+      errors.push(`${label}: must be an object.`);
+      return;
+    }
+    if (typeof entry.package !== "string" || entry.package.length === 0) {
       errors.push(`${label}: "package" must be a non-empty string.`);
       return;
     }
@@ -79,6 +121,12 @@ export function validateAllowlist(allowlist, now = new Date()) {
       return;
     }
     if (entry.expires !== undefined) {
+      if (typeof entry.expires !== "string") {
+        errors.push(
+          `${label} (${entry.package} ${entry.id}): "expires" must be a YYYY-MM-DD date.`,
+        );
+        return;
+      }
       const expires = new Date(`${entry.expires}T23:59:59Z`);
       if (Number.isNaN(expires.getTime())) {
         errors.push(
@@ -93,23 +141,26 @@ export function validateAllowlist(allowlist, now = new Date()) {
         return;
       }
     }
-    entries.push(entry);
+    entries.push({
+      package: entry.package,
+      id: entry.id,
+      reason: entry.reason,
+      ...(entry.expires === undefined ? {} : { expires: entry.expires as string }),
+    });
   });
 
   return { entries, errors };
 }
 
-/**
- * @param {{ vulnerabilities?: Record<string, { via?: Array<object | string> }> }} report
- * @param {unknown} allowlist
- * @param {{ now?: Date }} [options]
- * @returns {{ blocking: Finding[], warnings: Finding[], allowed: Finding[], errors: string[] }}
- */
-export function evaluateAuditReport(report, allowlist, { now = new Date() } = {}) {
+export function evaluateAuditReport(
+  report: AuditReport,
+  allowlist: unknown,
+  { now = new Date() }: { now?: Date } = {},
+): Evaluation {
   const { entries, errors } = validateAllowlist(allowlist, now);
-  const blocking = [];
-  const warnings = [];
-  const allowed = [];
+  const blocking: Finding[] = [];
+  const warnings: Finding[] = [];
+  const allowed: Finding[] = [];
 
   for (const finding of collectFindings(report)) {
     const exception = entries.find(
@@ -127,37 +178,39 @@ export function evaluateAuditReport(report, allowlist, { now = new Date() } = {}
   return { blocking, warnings, allowed, errors };
 }
 
-function readAllowlist() {
+function readAllowlist(): unknown {
   return JSON.parse(readFileSync(allowlistFile, "utf8"));
 }
 
-function runAudit() {
+function runAudit(): AuditReport {
   try {
     const stdout = execFileSync("npm", ["audit", "--json"], {
       cwd: repoRoot,
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
     });
-    return JSON.parse(stdout);
+    return JSON.parse(stdout) as AuditReport;
   } catch (error) {
     // `npm audit` exits non-zero when it finds vulnerabilities; the report is still on stdout.
-    if (typeof error.stdout === "string" && error.stdout.trim().length > 0) {
-      return JSON.parse(error.stdout);
+    const stdout = (error as { stdout?: unknown }).stdout;
+    if (typeof stdout === "string" && stdout.trim().length > 0) {
+      return JSON.parse(stdout) as AuditReport;
     }
     throw error;
   }
 }
 
-function reportLine({ severity, package: name, id, title }) {
+function reportLine({ severity, package: name, id, title }: Finding): string {
   return `  ${severity.padEnd(9)} ${name}  ${id}  ${title}`;
 }
 
-function main() {
-  let report;
+function main(): void {
+  let report: AuditReport;
   try {
     report = runAudit();
   } catch (error) {
-    console.error(`Dependency audit could not run: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Dependency audit could not run: ${message}`);
     process.exitCode = 2;
     return;
   }
@@ -169,11 +222,12 @@ function main() {
     return;
   }
 
-  let allowlist;
+  let allowlist: unknown;
   try {
     allowlist = readAllowlist();
   } catch (error) {
-    console.error(`Dependency audit could not read its allowlist: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Dependency audit could not read its allowlist: ${message}`);
     process.exitCode = 2;
     return;
   }
@@ -189,7 +243,7 @@ function main() {
     for (const finding of warnings) console.warn(reportLine(finding));
   }
   if (allowed.length > 0) {
-    console.log("Allowed by scripts/audit-allowlist.json:");
+    console.log("Allowed by audit-allowlist.json:");
     for (const finding of allowed) console.log(reportLine(finding));
   }
   if (errors.length > 0) {
@@ -203,9 +257,11 @@ function main() {
   }
 
   console.error(
-    "Dependency audit failed. Upgrade the affected package or add a reviewed exception to scripts/audit-allowlist.json.",
+    "Dependency audit failed. Upgrade the affected package or add a reviewed exception to packages/tooling/audit-allowlist.json.",
   );
   process.exitCode = 1;
 }
 
-main();
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) main();
