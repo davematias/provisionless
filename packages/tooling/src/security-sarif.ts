@@ -113,6 +113,13 @@ function main(): void {
     console.log(
       `Static analysis passed: no error-level findings in ${files.length} SARIF file(s)${suffix}.`,
     );
+    if (lowerSeverity > 0) {
+      console.warn("Lower-severity findings (not blocking):");
+      for (const finding of findings) {
+        if (finding.level === "error") continue;
+        console.warn(`  ${finding.level.padEnd(7)} ${finding.ruleId} at ${finding.location}`);
+      }
+    }
     return;
   }
 
