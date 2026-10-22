@@ -29,12 +29,34 @@ npm run build      # build every package (Turbo)
 npm test           # run unit tests across packages (Vitest via Turbo)
 npm run lint       # lint every package (oxlint)
 npm run typecheck  # typecheck every package (TypeScript)
+npm run audit      # scan dependencies for known vulnerabilities
 npm run format     # format the repo (oxfmt)
 ```
 
 Tasks are orchestrated with [Turborepo](turbo.json); each command above fans out to the workspace
 packages. Run a script for a single package with `npm run <script> --workspace=<package-name>`, e.g.
 `npm run build --workspace=@provisionless/api`.
+
+### Dependency security
+
+`npm run audit` scans the whole workspace dependency tree with `npm audit` and fails when it finds a
+high or critical advisory that is not listed as a reviewed exception. Moderate and low advisories are
+reported without failing. CI runs the same check on every pull request and on pushes to `main`.
+
+Reviewed exceptions live in `packages/tooling/audit-allowlist.json`. Each entry names the affected
+package, the advisory id, a reason, and an expiry date (`YYYY-MM-DD`) after which the exception stops
+being accepted and must be re-reviewed:
+
+```json
+[
+  {
+    "package": "example-package",
+    "id": "GHSA-aaaa-bbbb-cccc",
+    "reason": "Only reachable from build tooling; fix tracked upstream.",
+    "expires": "2026-12-31"
+  }
+]
+```
 
 ## API routes
 
