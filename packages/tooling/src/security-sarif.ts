@@ -16,7 +16,13 @@ export interface SarifResult {
   properties?: Record<string, unknown>;
 }
 
+export interface SarifRule {
+  id?: string;
+  properties?: Record<string, unknown>;
+}
+
 export interface SarifRun {
+  tool?: { driver?: { rules?: SarifRule[] } };
   results?: SarifResult[];
 }
 
@@ -45,6 +51,11 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
 
   for (const log of logs) {
     for (const run of log.runs ?? []) {
+      const ruleSeverities = new Map<string, number>();
+      for (const rule of run.tool?.driver?.rules ?? []) {
+        const severity = readSecuritySeverity(rule);
+        if (rule.id !== undefined && severity !== null) ruleSeverities.set(rule.id, severity);
+      }
       for (const result of run.results ?? []) {
         const physicalLocation = result.locations?.[0]?.physicalLocation;
         const uri = physicalLocation?.artifactLocation?.uri ?? "unknown location";
@@ -52,7 +63,9 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
         findings.push({
           ruleId: result.ruleId ?? "unknown-rule",
           level: result.level ?? "warning",
-          securitySeverity: readSecuritySeverity(result),
+          securitySeverity:
+            readSecuritySeverity(result) ??
+            (result.ruleId === undefined ? null : (ruleSeverities.get(result.ruleId) ?? null)),
           message: result.message?.text ?? "No message",
           location: line === undefined ? uri : `${uri}:${line}`,
         });
@@ -63,8 +76,8 @@ export function collectFindings(logs: SarifLog[]): SarifFinding[] {
   return findings;
 }
 
-function readSecuritySeverity(result: SarifResult): number | null {
-  const raw = result.properties?.["security-severity"];
+function readSecuritySeverity(item: { properties?: Record<string, unknown> }): number | null {
+  const raw = item.properties?.["security-severity"];
   const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
   return Number.isFinite(value) ? value : null;
 }
