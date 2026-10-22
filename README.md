@@ -61,8 +61,9 @@ being accepted and must be re-reviewed:
 ### Secret scanning
 
 CI runs [gitleaks](https://github.com/gitleaks/gitleaks) over the commits in every pull request and
-push to `main` with the default rule set. The `Secret scan` job fails when it detects a credential.
-Reviewed false positives live in `.gitleaks.toml`, which extends the default rules:
+push to `main` with the default rule set, pinned to gitleaks 8.30.1. The `Secret scan` job fails when
+it detects a credential. Reviewed false positives live in `.gitleaks.toml`, which extends the default
+rules:
 
 ```toml
 [[allowlists]]
@@ -78,7 +79,7 @@ value is not a credential. Removing or replacing the value is always better than
 Run the same scan locally with Docker:
 
 ```bash
-docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest \
+docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
   git --config /repo/.gitleaks.toml /repo
 ```
 
