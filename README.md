@@ -168,6 +168,12 @@ the admin app's `/reset` page.
 - `provisionless deploy` provisions `<prefix>-content-types` and `<prefix>-content-entries` tables,
   keyed by `slug` and by `type` + `id` respectively; undeploy removes them unless data is kept.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to submit changes and the
+[engineering standards](CONTRIBUTING.md#engineering-standards) covering layering, JSDoc, inline
+comments, and API documentation.
+
 ## Continuous integration
 
 GitHub Actions runs typecheck, lint, unit tests, integration tests, the formatting check, and the
