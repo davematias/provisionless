@@ -13,6 +13,17 @@ npm run dev --workspace=@provisionless/website
 
 The site runs at http://localhost:3000.
 
+## Security headers
+
+`next.config.ts` sends a baseline set of browser security headers on every route: a
+Content-Security-Policy, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` (with
+`frame-ancestors` in the policy), `Strict-Transport-Security`, and `Permissions-Policy`.
+
+The policy allows inline scripts and styles because the App Router bootstraps with inline scripts and
+the design system theme script runs before hydration; a nonce-based policy would force every page to
+render dynamically. Development adds the eval and websocket sources Next.js needs. The definitions
+live in `src/lib/security-headers.ts` and are covered by unit tests.
+
 ## Configuration
 
 | Variable               | Default                 | Purpose                                          |
