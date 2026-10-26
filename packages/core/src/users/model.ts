@@ -24,8 +24,21 @@ export interface NewUser {
   enabled?: boolean;
 }
 
+/**
+ * Checks for the single-`@`, dotted-domain shape Provisionless accepts. Written as scans rather
+ * than one anchored regular expression so a long, failing address cannot backtrack badly.
+ */
 export function isValidEmailAddress(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  if (/\s/.test(value)) {
+    return false;
+  }
+  const at = value.indexOf("@");
+  if (at <= 0 || at !== value.lastIndexOf("@")) {
+    return false;
+  }
+  const domain = value.slice(at + 1);
+  const dot = domain.indexOf(".", 1);
+  return dot !== -1 && dot < domain.length - 1;
 }
 
 export type PublicUser = Omit<User, "passwordHash" | "passwordChangedAt">;
