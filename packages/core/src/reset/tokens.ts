@@ -28,6 +28,10 @@ function isConditionalCheckFailed(error: unknown): boolean {
   );
 }
 
+/**
+ * Stores single-use password reset tokens. Only a hash is stored and consumption is atomic, so a
+ * token works once and expires.
+ */
 export class ResetTokenRepository {
   readonly #client: DynamoDBDocumentClient;
   readonly #tableName: string;
@@ -39,6 +43,10 @@ export class ResetTokenRepository {
     this.#ttlSeconds = options.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   }
 
+  /**
+   * Issues a token for a user and returns the raw value; only its hash is persisted. Tokens expire
+   * after the configured TTL.
+   */
   async create(username: string): Promise<string> {
     const token = randomBytes(TOKEN_BYTES).toString("base64url");
     const createdAt = nowSeconds();
@@ -56,6 +64,10 @@ export class ResetTokenRepository {
     return token;
   }
 
+  /**
+   * Atomically consumes a token and returns the username it belongs to, or `undefined` when it is
+   * unknown, already used, or expired.
+   */
   async consume(token: string): Promise<string | undefined> {
     try {
       const result = await this.#client.send(
@@ -78,6 +90,10 @@ export class ResetTokenRepository {
   }
 }
 
+/**
+ * Creates a repository for the reset tokens table, using the default DynamoDB client when none is
+ * supplied.
+ */
 export function createResetTokenRepository(
   tableName: string,
   client?: DynamoDBDocumentClient,

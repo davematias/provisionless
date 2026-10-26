@@ -38,6 +38,10 @@ function prefersDark(): boolean {
   );
 }
 
+/**
+ * Provides the active theme and a setter to its subtree and applies the resolved theme to the
+ * document. Reads and writes the stored preference.
+ */
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [systemDark, setSystemDark] = useState<boolean>(prefersDark);
@@ -80,6 +84,9 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/**
+ * Returns the active theme and setter. Throws when used outside a `ThemeProvider`.
+ */
 export function useTheme(): ThemeContextValue {
   const context = useContext(ThemeContext);
   if (context === undefined) {

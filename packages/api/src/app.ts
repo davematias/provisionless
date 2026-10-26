@@ -18,6 +18,9 @@ export interface AppDependencies extends AuthDependencies {
   corsAllowOrigins?: string[];
 }
 
+/**
+ * Splits the CORS allowlist environment value, trimming blanks.
+ */
 export function parseAllowOrigins(value: string | undefined): string[] {
   return (value ?? "")
     .split(",")
@@ -25,10 +28,16 @@ export function parseAllowOrigins(value: string | undefined): string[] {
     .filter((entry) => entry !== "");
 }
 
+/**
+ * Reads the cookie SameSite setting, defaulting to `Lax` for anything other than `None`.
+ */
 export function parseCookieSameSite(value: string | undefined): "Lax" | "None" {
   return value === "None" ? "None" : "Lax";
 }
 
+/**
+ * Builds the API with the supplied stores and configuration and registers every route.
+ */
 export function createApp(deps: AppDependencies): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
 

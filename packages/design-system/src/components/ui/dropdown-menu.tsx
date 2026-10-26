@@ -6,22 +6,34 @@ import type * as React from "react";
 
 import { cn } from "../../lib/utils.ts";
 
+/**
+ * Root of a dropdown menu; compose it with a trigger, content, and items.
+ */
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
 }
 
+/**
+ * Renders menu content in a portal to escape overflow and stacking contexts.
+ */
 function DropdownMenuPortal({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
   return <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
 }
 
+/**
+ * Control that toggles the menu.
+ */
 function DropdownMenuTrigger({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
   return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
 }
 
+/**
+ * Floating panel that holds menu items.
+ */
 function DropdownMenuContent({
   className,
   sideOffset = 4,
@@ -42,10 +54,16 @@ function DropdownMenuContent({
   );
 }
 
+/**
+ * Groups related menu items.
+ */
 function DropdownMenuGroup({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
   return <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />;
 }
 
+/**
+ * Actionable menu entry.
+ */
 function DropdownMenuItem({
   className,
   inset,
@@ -69,6 +87,9 @@ function DropdownMenuItem({
   );
 }
 
+/**
+ * Menu entry that toggles a checked state.
+ */
 function DropdownMenuCheckboxItem({
   className,
   children,
@@ -95,12 +116,18 @@ function DropdownMenuCheckboxItem({
   );
 }
 
+/**
+ * Group of radio items where at most one is selected.
+ */
 function DropdownMenuRadioGroup({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
   return <DropdownMenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />;
 }
 
+/**
+ * Menu entry with a radio indicator.
+ */
 function DropdownMenuRadioItem({
   className,
   children,
@@ -125,6 +152,9 @@ function DropdownMenuRadioItem({
   );
 }
 
+/**
+ * Non-interactive label for a group of menu items.
+ */
 function DropdownMenuLabel({
   className,
   inset,
@@ -142,6 +172,9 @@ function DropdownMenuLabel({
   );
 }
 
+/**
+ * Divider between groups of menu items.
+ */
 function DropdownMenuSeparator({
   className,
   ...props
@@ -155,6 +188,9 @@ function DropdownMenuSeparator({
   );
 }
 
+/**
+ * Right-aligned keyboard hint shown inside a menu item.
+ */
 function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
@@ -165,10 +201,16 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<"spa
   );
 }
 
+/**
+ * Root of a nested submenu.
+ */
 function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
   return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />;
 }
 
+/**
+ * Menu item that opens a nested submenu.
+ */
 function DropdownMenuSubTrigger({
   className,
   inset,
@@ -193,6 +235,9 @@ function DropdownMenuSubTrigger({
   );
 }
 
+/**
+ * Floating panel of a nested submenu.
+ */
 function DropdownMenuSubContent({
   className,
   ...props

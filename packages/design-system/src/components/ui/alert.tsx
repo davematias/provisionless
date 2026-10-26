@@ -19,6 +19,9 @@ const alertVariants = cva(
   },
 );
 
+/**
+ * Inline status message; pairs with `AlertTitle` and `AlertDescription`.
+ */
 function Alert({
   className,
   variant,
@@ -34,6 +37,9 @@ function Alert({
   );
 }
 
+/**
+ * Heading of an `Alert`.
+ */
 function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -44,6 +50,9 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
+/**
+ * Supporting body text of an `Alert`.
+ */
 function AlertDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div

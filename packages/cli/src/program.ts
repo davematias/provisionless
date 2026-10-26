@@ -10,6 +10,9 @@ import { registerUndeployCommand } from "./commands/undeploy.ts";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+/**
+ * Builds the Commander program with the deploy, undeploy, and help commands.
+ */
 export function createProgram(): Command {
   const program = new Command();
 
@@ -26,6 +29,10 @@ export function createProgram(): Command {
   return program;
 }
 
+/**
+ * Parses the given argv and runs the selected command; errors propagate to the executable entry
+ * point.
+ */
 export async function run(argv: string[]): Promise<void> {
   await createProgram().parseAsync(argv);
 }

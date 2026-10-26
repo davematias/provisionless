@@ -19,6 +19,9 @@ export interface ContentTypeRepositoryOptions {
   client: DynamoDBDocumentClient;
 }
 
+/**
+ * Stores content schemas in DynamoDB keyed by slug, validating them before every write.
+ */
 export class ContentTypeRepository {
   readonly #client: DynamoDBDocumentClient;
   readonly #tableName: string;
@@ -28,6 +31,9 @@ export class ContentTypeRepository {
     this.#tableName = options.tableName;
   }
 
+  /**
+   * Reads one schema, or `undefined` when the slug is unknown.
+   */
   async get(slug: string): Promise<ContentType | undefined> {
     const result = await this.#client.send(
       new GetCommand({ TableName: this.#tableName, Key: { slug } }),
@@ -35,11 +41,19 @@ export class ContentTypeRepository {
     return result.Item as ContentType | undefined;
   }
 
+  /**
+   * Lists every schema; callers sort as needed.
+   */
   async list(): Promise<ContentType[]> {
     const result = await this.#client.send(new ScanCommand({ TableName: this.#tableName }));
     return (result.Items ?? []) as ContentType[];
   }
 
+  /**
+   * Validates and writes a schema, preserving `createdAt` when one already exists.
+   *
+   * @throws {ContentTypeValidationError} When the schema is invalid.
+   */
   async put(input: ContentTypeInput): Promise<ContentType> {
     const errors = validateContentType(input);
     if (errors.length > 0) {
@@ -65,6 +79,9 @@ export class ContentTypeRepository {
     return contentType;
   }
 
+  /**
+   * Deletes a schema by slug, returning `false` when it was already gone.
+   */
   async delete(slug: string): Promise<boolean> {
     const result = await this.#client.send(
       new DeleteCommand({
@@ -77,6 +94,10 @@ export class ContentTypeRepository {
   }
 }
 
+/**
+ * Creates a repository for the content types table, using the default DynamoDB client when none is
+ * supplied.
+ */
 export function createContentTypeRepository(
   tableName: string,
   client?: DynamoDBDocumentClient,
