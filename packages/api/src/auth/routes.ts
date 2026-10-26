@@ -1,4 +1,4 @@
-import { toPublicUser, verifyPassword, type User } from "@provisionless/core";
+import { toPublicUser, type User } from "@provisionless/core";
 import type { Hono } from "hono";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
@@ -12,6 +12,7 @@ import {
   validationErrorResponse,
 } from "../openapi/helpers.ts";
 import { UserResponseSchema } from "../users/schemas.ts";
+import { UserNotFoundError } from "../users/service.ts";
 import type { UserManagementStore } from "../users/store.ts";
 import {
   LoginRequestSchema,
@@ -20,9 +21,8 @@ import {
   ResetLinkResponseSchema,
   ResetRequestSchema,
 } from "./schemas.ts";
-import { signSession } from "./jwt.ts";
 import { requireAdmin, requireAuth } from "./middleware.ts";
-import { buildResetUrl, DEFAULT_ADMIN_BASE_URL } from "./reset-link.ts";
+import { AuthService, type ResetTokenStore } from "./service.ts";
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
@@ -31,11 +31,7 @@ import {
 } from "./session.ts";
 
 export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "./session.ts";
-
-export interface ResetTokenStore {
-  create(username: string): Promise<string>;
-  consume(token: string): Promise<string | undefined>;
-}
+export type { ResetTokenStore } from "./service.ts";
 
 export interface AuthDependencies extends SessionDependencies {
   users: UserManagementStore;
@@ -97,6 +93,7 @@ function extractResetConfirmation(body: unknown): { token: string; password: str
 export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): void {
   const secure = deps.secureCookies ?? true;
   const cookies = cookieOptions(secure, deps.cookieSameSite ?? "Lax");
+  const auth = new AuthService(deps);
 
   app.post(
     "/auth/login",
@@ -117,22 +114,13 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
         return c.json({ error: "username and password are required" }, 400);
       }
 
-      const user = await deps.users.getUser(credentials.username);
-      const valid =
-        user !== undefined &&
-        user.enabled &&
-        (await verifyPassword(credentials.password, user.passwordHash));
-      if (!user || !valid) {
+      const result = await auth.login(credentials.username, credentials.password);
+      if (!result) {
         return c.json({ error: "Invalid username or password" }, 401);
       }
 
-      const token = await signSession(
-        { username: user.username, passwordChangedAt: user.passwordChangedAt },
-        deps.jwtSecret,
-        SESSION_TTL_SECONDS,
-      );
-      setCookie(c, SESSION_COOKIE, token, cookies);
-      return c.json({ user: toPublicUser(user) });
+      setCookie(c, SESSION_COOKIE, result.token, cookies);
+      return c.json({ user: toPublicUser(result.user) });
     },
   );
 
@@ -170,11 +158,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
         return c.json({ error: "username is required" }, 400);
       }
 
-      const user = await deps.users.getUser(username);
-      if (user) {
-        const token = await deps.resetTokens.create(user.username);
-        await deps.deliverReset?.(user, token);
-      }
+      await auth.requestPasswordReset(username);
       return c.json({ ok: true });
     },
   );
@@ -202,16 +186,14 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
         return c.json({ error: "username is required" }, 400);
       }
 
-      const target = await deps.users.getUser(username);
-      if (!target) {
-        return c.json({ error: "User not found" }, 404);
+      try {
+        return c.json(await auth.createResetLink(username));
+      } catch (error) {
+        if (error instanceof UserNotFoundError) {
+          return c.json({ error: "User not found" }, 404);
+        }
+        throw error;
       }
-
-      const token = await deps.resetTokens.create(target.username);
-      return c.json({
-        username: target.username,
-        url: buildResetUrl(deps.adminBaseUrl ?? DEFAULT_ADMIN_BASE_URL, token),
-      });
     },
   );
 
@@ -233,13 +215,11 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
         return c.json({ error: "token and password are required" }, 400);
       }
 
-      const username = await deps.resetTokens.consume(confirmation.token);
-      const user = username ? await deps.users.getUser(username) : undefined;
-      if (!user) {
+      const confirmed = await auth.confirmPasswordReset(confirmation.token, confirmation.password);
+      if (!confirmed) {
         return c.json({ error: "Invalid or expired reset token" }, 400);
       }
 
-      await deps.users.updateUser(user.username, { password: confirmation.password });
       deleteCookie(c, SESSION_COOKIE, { path: "/" });
       return c.json({ ok: true });
     },
@@ -260,11 +240,7 @@ export function registerAuthRoutes(app: Hono<AppEnv>, deps: AuthDependencies): v
     requireAuth(deps),
     async (c) => {
       const user = c.get("user");
-      const refreshed = await signSession(
-        { username: user.username, passwordChangedAt: user.passwordChangedAt },
-        deps.jwtSecret,
-        SESSION_TTL_SECONDS,
-      );
+      const refreshed = await auth.createSessionToken(user);
       setCookie(c, SESSION_COOKIE, refreshed, cookies);
       return c.json({ user: toPublicUser(user) });
     },

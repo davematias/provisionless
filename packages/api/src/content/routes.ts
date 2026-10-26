@@ -1,10 +1,4 @@
-import {
-  validateContentEntryValues,
-  validateContentType,
-  type ContentType,
-  type ContentTypeInput,
-} from "@provisionless/core";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 
 import { requireAdmin, requireAuth } from "../auth/middleware.ts";
@@ -26,6 +20,13 @@ import {
   ContentTypeResponseSchema,
   ContentTypesResponseSchema,
 } from "./schemas.ts";
+import {
+  ContentEntryNotFoundError,
+  ContentEntryValidationError,
+  ContentService,
+  ContentTypeNotFoundError,
+  ContentTypeValidationError,
+} from "./service.ts";
 import type { ContentEntryStore, ContentTypeStore } from "./store.ts";
 
 export interface ContentRoutesDependencies extends SessionDependencies {
@@ -37,14 +38,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-async function findContentType(
-  deps: ContentRoutesDependencies,
-  slug: string,
-): Promise<ContentType | undefined> {
-  return deps.contentTypes.get(slug);
+function mappedError(c: Context<AppEnv>, error: unknown): Response | undefined {
+  if (error instanceof ContentTypeNotFoundError) {
+    return c.json({ error: "Content type not found" }, 404);
+  }
+  if (error instanceof ContentEntryNotFoundError) {
+    return c.json({ error: "Content entry not found" }, 404);
+  }
+  if (error instanceof ContentTypeValidationError) {
+    return c.json({ error: "Invalid content type", errors: error.errors }, 400);
+  }
+  if (error instanceof ContentEntryValidationError) {
+    return c.json({ error: "Invalid content entry", errors: error.errors }, 400);
+  }
+  return undefined;
 }
 
 export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDependencies): void {
+  const content = new ContentService(deps.contentTypes, deps.contentEntries);
+
   app.get(
     "/content-types",
     describeRoute({
@@ -60,10 +72,7 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAdmin(deps),
     async (c) => {
-      const contentTypes = (await deps.contentTypes.list()).sort((left, right) =>
-        left.slug.localeCompare(right.slug),
-      );
-      return c.json({ contentTypes });
+      return c.json({ contentTypes: await content.listContentTypes() });
     },
   );
 
@@ -84,11 +93,15 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAdmin(deps),
     async (c) => {
-      const contentType = await findContentType(deps, c.req.param("slug"));
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
+      try {
+        return c.json({ contentType: await content.getContentType(c.req.param("slug")) });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-      return c.json({ contentType });
     },
   );
 
@@ -115,18 +128,16 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
         return c.json({ error: "A JSON body is required" }, 400);
       }
 
-      const candidate = {
-        slug: c.req.param("slug"),
-        name: body.name,
-        fields: body.fields,
-      };
-      const errors = validateContentType(candidate);
-      if (errors.length > 0) {
-        return c.json({ error: "Invalid content type", errors }, 400);
+      try {
+        const contentType = await content.putContentType(c.req.param("slug"), body);
+        return c.json({ contentType });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const contentType = await deps.contentTypes.put(candidate as ContentTypeInput);
-      return c.json({ contentType });
     },
   );
 
@@ -147,15 +158,16 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAdmin(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
+      try {
+        await content.deleteContentType(c.req.param("slug"));
+        return c.json({ ok: true });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      await deps.contentEntries.deleteByType(slug);
-      await deps.contentTypes.delete(slug);
-      return c.json({ ok: true });
     },
   );
 
@@ -175,14 +187,15 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAuth(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
+      try {
+        return c.json({ entries: await content.listEntries(c.req.param("slug")) });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const entries = await deps.contentEntries.list(slug);
-      return c.json({ entries });
     },
   );
 
@@ -202,17 +215,16 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAuth(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
+      try {
+        const entry = await content.getEntry(c.req.param("slug"), c.req.param("id"));
+        return c.json({ entry });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const entry = await deps.contentEntries.get(slug, c.req.param("id"));
-      if (!entry) {
-        return c.json({ error: "Content entry not found" }, 404);
-      }
-      return c.json({ entry });
     },
   );
 
@@ -234,24 +246,21 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAuth(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
-      }
-
       const body = await c.req.json().catch(() => undefined);
       if (!isRecord(body) || body.values === undefined) {
         return c.json({ error: "values is required" }, 400);
       }
 
-      const errors = validateContentEntryValues(contentType, body.values);
-      if (errors.length > 0) {
-        return c.json({ error: "Invalid content entry", errors }, 400);
+      try {
+        const entry = await content.createEntry(c.req.param("slug"), body.values);
+        return c.json({ entry }, 201);
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const entry = await deps.contentEntries.create(contentType, body.values);
-      return c.json({ entry }, 201);
     },
   );
 
@@ -273,30 +282,25 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAuth(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
-      }
-
       const body = await c.req.json().catch(() => undefined);
       if (!isRecord(body) || body.values === undefined) {
         return c.json({ error: "values is required" }, 400);
       }
 
-      const errors = validateContentEntryValues(contentType, body.values);
-      if (errors.length > 0) {
-        return c.json({ error: "Invalid content entry", errors }, 400);
+      try {
+        const entry = await content.updateEntry(
+          c.req.param("slug"),
+          c.req.param("id"),
+          body.values,
+        );
+        return c.json({ entry });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const entryId = c.req.param("id");
-      const existing = await deps.contentEntries.get(slug, entryId);
-      if (!existing) {
-        return c.json({ error: "Content entry not found" }, 404);
-      }
-
-      const entry = await deps.contentEntries.update(contentType, entryId, body.values);
-      return c.json({ entry });
     },
   );
 
@@ -316,17 +320,16 @@ export function registerContentRoutes(app: Hono<AppEnv>, deps: ContentRoutesDepe
     }),
     requireAuth(deps),
     async (c) => {
-      const slug = c.req.param("slug");
-      const contentType = await findContentType(deps, slug);
-      if (!contentType) {
-        return c.json({ error: "Content type not found" }, 404);
+      try {
+        await content.deleteEntry(c.req.param("slug"), c.req.param("id"));
+        return c.json({ ok: true });
+      } catch (error) {
+        const mapped = mappedError(c, error);
+        if (mapped) {
+          return mapped;
+        }
+        throw error;
       }
-
-      const deleted = await deps.contentEntries.delete(slug, c.req.param("id"));
-      if (!deleted) {
-        return c.json({ error: "Content entry not found" }, 404);
-      }
-      return c.json({ ok: true });
     },
   );
 }
