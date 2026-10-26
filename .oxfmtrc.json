@@ -12,5 +12,5 @@
   "bracketSameLine": false,
   "bracketSpacing": true,
   "sortPackageJson": false,
-  "ignorePatterns": []
+  "ignorePatterns": ["openapi.json"]
 }

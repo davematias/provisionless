@@ -19,6 +19,8 @@
   "scripts": {
     "dev": "node --experimental-strip-types --watch src/dev.ts",
     "build": "tsc -p tsconfig.json",
+    "openapi:generate": "node --experimental-strip-types src/openapi/generate.ts",
+    "openapi:check": "node --experimental-strip-types src/openapi/generate.ts --check",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint": "oxlint .",
