@@ -15,8 +15,8 @@ sources directly using Node's built-in type stripping, so no build step is requi
 
 ### Auth and cross-site sessions
 
-`POST /auth/login`, `POST /auth/logout`, and `GET /auth/me` establish a session cookie that the admin
-site uses. When the admin app is served from a different origin, set:
+The auth routes establish the session cookie that the admin site uses. When the admin app is served
+from a different origin, set:
 
 - `AUTH_ALLOW_ORIGINS` — comma-separated origins allowed to call the API with credentials (for example
   `http://localhost:3000` in local development). Without it no CORS headers are emitted.
@@ -28,12 +28,11 @@ site uses. When the admin app is served from a different origin, set:
 
 ### Password reset
 
-`POST /auth/reset/request` (body `{ "username": "..." }`) creates a single-use, expiring token for
-the user and returns `{ "ok": true }`; it returns the same response for unknown usernames, so it never
-reveals whether an account exists. Only a hash of the token is stored, in the DynamoDB table named by
-`RESET_TOKENS_TABLE_NAME`; the raw token is passed to a delivery hook and is never returned over
-HTTP. `POST /auth/reset/confirm` (body `{ "token": "...", "password": "..." }`) consumes the token
-once and sets the new password, which invalidates the user's existing sessions.
+Requesting a reset creates a single-use, expiring token for the user and returns the same response
+whether or not the account exists, so it never reveals whether a username is registered. Only a hash
+of the token is stored, in the DynamoDB table named by `RESET_TOKENS_TABLE_NAME`; the raw token is
+passed to a delivery hook and is never returned over HTTP. Confirming a reset consumes the token once
+and sets the new password, which invalidates the user's existing sessions.
 
 Reset links are delivered by a pluggable email provider:
 
@@ -50,22 +49,15 @@ deploy CLI prints verification guidance when it creates the identity. Request pr
 SES before relying on reset emails for real users. Users without an email address cannot receive SES
 mail; the API logs a warning in that case.
 
-Admins can also create a link manually with `POST /auth/reset/link` (body `{ "username": "..." }`).
-The route requires an admin session, returns `{ "username": "...", "url": "..." }`, and does not send
-email, so it works when SES is not configured. Non-admin callers get `403`, unknown usernames get
-`404` without creating a token, and the returned link has the same one-hour, single-use behavior as
-an emailed link.
+Admins can also create a link manually without sending email. The request requires an admin session,
+returns the username and URL, responds `403` for non-admins, and `404` for unknown usernames without
+creating a token. The returned link has the same one-hour, single-use behavior as an emailed link.
 
 ### User management
 
-These routes require an admin session (`401` unauthenticated, `403` non-admin):
-
-- `GET /users` returns `{ "users": [...] }` sorted by username.
-- `POST /users` creates a user from `{ "username", "password", "email", "firstName", "lastName",
-"isAdmin"?, "enabled"? }` and returns `201` with `{ "user": ... }`. `isAdmin` defaults to `false`
-  and `enabled` to `true`; duplicate usernames return `409` and invalid fields return `400`.
-- `PATCH /users/:username` updates any of `enabled`, `isAdmin`, `email`, `firstName`, or `lastName`
-  and returns `{ "user": ... }`. Unknown users return `404`.
+User management is admin-only (`401` unauthenticated, `403` non-admin). Admins can list users,
+create them with a password, and update profile fields, `isAdmin`, and `enabled`. Duplicate
+usernames are rejected and unknown users return `404`.
 
 Every response uses the public user shape, so password hashes and `passwordChangedAt` are never
 returned. Passwords are hashed with the same code used by login and reset; administrators set a
@@ -73,38 +65,23 @@ password directly when creating a user.
 
 ### Content types and entries
 
-Content schemas are managed by admins:
-
-- `GET /content-types` lists `{ "contentTypes": [...] }` sorted by slug.
-- `GET /content-types/:slug` returns `{ "contentType": ... }`.
-- `PUT /content-types/:slug` creates or replaces a schema from `{ "name": "...", "fields": [{ "name":
-"...", "type": "string" | "boolean", "required"?: true }] }`.
-- `DELETE /content-types/:slug` deletes the schema and every entry that belongs to it.
-
-Content entries require a valid session (any role):
-
-- `GET /content/:slug` lists `{ "entries": [...] }`.
-- `GET /content/:slug/:id` returns `{ "entry": ... }`.
-- `POST /content/:slug` creates an entry from `{ "values": { ... } }` and returns `201`.
-- `PUT /content/:slug/:id` replaces an entry's values.
-- `DELETE /content/:slug/:id` removes an entry.
+Content schemas are managed by admins; entries require a valid session with any role. Deleting a
+schema deletes every entry that belongs to it.
 
 Values are validated against the stored schema before write operations: missing required fields,
 wrong value types, and unknown fields return `400` with an `errors` array. Unknown content types or
 entries return `404`.
 
-### OpenAPI
+### API reference
 
-`GET /openapi.json` returns an OpenAPI 3.0 document describing every route, including request and
-response schemas and the session-cookie security scheme (`provisionless_session`). Admin-only routes
-are marked as requiring the cookie.
+The [OpenAPI document](../../openapi.json) is the single reference for every route, parameter, and
+request and response shape, including the session-cookie security scheme
+(`provisionless_session`); `GET /openapi.json` serves the same document at runtime. Regenerate and
+verify it after changing routes:
 
-### Example route
-
-`GET /health` returns:
-
-```json
-{ "status": "ok" }
+```bash
+npm run openapi:generate
+npm run openapi:check
 ```
 
 ## AWS Lambda

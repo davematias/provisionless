@@ -118,43 +118,28 @@ codeql database analyze codeql-db \
 npm run sast:gate --workspace=@provisionless/tooling -- codeql-results
 ```
 
-## API routes
+## API reference
 
-The API (`@provisionless/api`) exposes a small Hono app. Routes are either public or protected by
-the `requireAuth` session middleware, which verifies the session cookie, loads the user, and rejects
-requests with a missing or tampered token, a disabled user, or a token issued before the user's last
-password change with `401`.
+The API (`@provisionless/api`) exposes a small Hono app. The [OpenAPI document](openapi.json) is the
+single reference for every route, parameter, and request and response shape; `GET /openapi.json`
+serves the same document at runtime. Regenerate it after changing routes:
 
-| Route                         | Access    | Purpose                                                                                  |
-| ----------------------------- | --------- | ---------------------------------------------------------------------------------------- |
-| `GET /health`                 | Public    | Liveness check.                                                                          |
-| `GET /openapi.json`           | Public    | OpenAPI 3.0 document describing the API.                                                 |
-| `POST /auth/login`            | Public    | Verify credentials and set the session cookie.                                           |
-| `POST /auth/logout`           | Public    | Clear the session cookie.                                                                |
-| `GET /auth/me`                | Protected | Return the current user and refresh the session cookie.                                  |
-| `POST /auth/reset/request`    | Public    | Create a single-use password reset token (same response whether or not the user exists). |
-| `POST /auth/reset/link`       | Admin     | Create a single-use reset link to share manually, without sending email.                 |
-| `POST /auth/reset/confirm`    | Public    | Consume a reset token and set a new password, invalidating existing sessions.            |
-| `GET /users`                  | Admin     | List users without password data.                                                        |
-| `POST /users`                 | Admin     | Create a user with a hashed password.                                                    |
-| `PATCH /users/:username`      | Admin     | Enable/disable a user, toggle `isAdmin`, or update profile fields.                       |
-| `GET /content-types`          | Admin     | List content schemas sorted by slug.                                                     |
-| `GET /content-types/:slug`    | Admin     | Read a content schema.                                                                   |
-| `PUT /content-types/:slug`    | Admin     | Create or replace a content schema.                                                      |
-| `DELETE /content-types/:slug` | Admin     | Delete a content schema and all of its entries.                                          |
-| `GET /content/:slug`          | Protected | List entries for a content type.                                                         |
-| `GET /content/:slug/:id`      | Protected | Read one content entry.                                                                  |
-| `POST /content/:slug`         | Protected | Create a content entry.                                                                  |
-| `PUT /content/:slug/:id`      | Protected | Replace a content entry's values.                                                        |
-| `DELETE /content/:slug/:id`   | Protected | Delete a content entry.                                                                  |
+```bash
+npm run openapi:generate  # rewrite openapi.json from the route definitions
+npm run openapi:check     # fail when the committed document has drifted
+```
 
-Protected routes read the authenticated user from the request context (`c.get("user")`); register new
-routes behind `requireAuth` so they inherit the same checks. Admin-only routes (reset links and user
-management) use `requireAdmin`, which adds a `403` for non-admins. Password reset tokens are stored
-hashed in DynamoDB and consumed atomically, so each token works once and expires; a successful reset
-bumps the user's `passwordChangedAt`, which invalidates their existing sessions. Reset links are
-emailed through SES when `EMAIL_FROM_ADDRESS` is configured and logged otherwise; both paths link to
-the admin app's `/reset` page.
+Routes are either public or protected by the `requireAuth` session middleware, which verifies the
+session cookie, loads the user, and rejects requests with a missing or tampered token, a disabled
+user, or a token issued before the user's last password change with `401`. Routes that manage users
+or content schemas use `requireAdmin`, which adds `403` for non-admins. Handlers read the
+authenticated user from the request context (`c.get("user")`), so registering a route behind
+`requireAuth` inherits the same checks.
+
+Password reset tokens are stored hashed in DynamoDB and consumed atomically, so each token works
+once and expires; a successful reset bumps the user's `passwordChangedAt`, which invalidates their
+existing sessions. Reset links are emailed through SES when `EMAIL_FROM_ADDRESS` is configured and
+logged otherwise; both paths link to the admin app's `/reset` page.
 
 ## Content model
 
