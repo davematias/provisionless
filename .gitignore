@@ -11,6 +11,9 @@ coverage/
 .open-next/
 next-env.d.ts
 
+codeql-db/
+codeql-results/
+
 .env
 .env.*
 
