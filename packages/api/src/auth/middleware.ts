@@ -22,6 +22,10 @@ async function authenticate(
   return user;
 }
 
+/**
+ * Middleware that verifies the session cookie, rejects invalid or disabled sessions with `401`, and
+ * exposes the user on the context.
+ */
 export function requireAuth(deps: SessionDependencies): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const user = await authenticate(c, deps);
@@ -34,6 +38,9 @@ export function requireAuth(deps: SessionDependencies): MiddlewareHandler<AppEnv
   };
 }
 
+/**
+ * Like `requireAuth`, and additionally rejects non-admin users with `403`.
+ */
 export function requireAdmin(deps: SessionDependencies): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const user = await authenticate(c, deps);

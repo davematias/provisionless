@@ -10,12 +10,18 @@ const scryptAsync = promisify(scrypt) as (
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 
+/**
+ * Hashes a password with scrypt and returns a self-describing `scrypt:salt:hash` string.
+ */
 export async function hashPassword(plain: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
   const derived = await scryptAsync(plain, salt, KEY_LENGTH);
   return `scrypt:${salt.toString("hex")}:${derived.toString("hex")}`;
 }
 
+/**
+ * Checks a password against a stored hash in constant time, returning `false` for malformed hashes.
+ */
 export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
   const [scheme, saltHex, hashHex] = hash.split(":");
   if (scheme !== "scrypt" || !saltHex || !hashHex) {

@@ -1,3 +1,4 @@
+/** Content field types a schema may declare. */
 export const CONTENT_FIELD_TYPES = ["string", "boolean"] as const;
 
 export type ContentFieldType = (typeof CONTENT_FIELD_TYPES)[number];
@@ -46,6 +47,10 @@ function isFieldType(value: unknown): value is ContentFieldType {
   return value === "string" || value === "boolean";
 }
 
+/**
+ * Raised when a content schema fails validation. `errors` lists every field problem in a
+ * client-safe shape.
+ */
 export class ContentTypeValidationError extends Error {
   readonly errors: ContentValidationError[];
 
@@ -56,6 +61,10 @@ export class ContentTypeValidationError extends Error {
   }
 }
 
+/**
+ * Raised when entry values fail validation against their schema. `errors` lists every field problem
+ * in a client-safe shape.
+ */
 export class ContentEntryValidationError extends Error {
   readonly errors: ContentValidationError[];
 
@@ -66,6 +75,10 @@ export class ContentEntryValidationError extends Error {
   }
 }
 
+/**
+ * Checks a candidate schema and returns one problem per invalid field. An empty array means the
+ * schema is valid.
+ */
 export function validateContentType(input: unknown): ContentValidationError[] {
   if (!isRecord(input)) {
     return [{ field: "", message: "Content type must be an object" }];
@@ -119,6 +132,10 @@ export function validateContentType(input: unknown): ContentValidationError[] {
   return errors;
 }
 
+/**
+ * Checks entry values against a schema: missing required fields, wrong value types, and unknown
+ * fields. An empty array means the values are valid.
+ */
 export function validateContentEntryValues(
   contentType: Pick<ContentType, "fields">,
   values: unknown,

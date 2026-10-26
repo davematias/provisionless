@@ -5,6 +5,9 @@ import type * as React from "react";
 
 import { cn } from "../../lib/utils.ts";
 
+/**
+ * Accessible label for a form control.
+ */
 function Label({ className, ...props }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (
     <LabelPrimitive.Root

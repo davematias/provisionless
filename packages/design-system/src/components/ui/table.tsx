@@ -2,6 +2,9 @@ import type * as React from "react";
 
 import { cn } from "../../lib/utils.ts";
 
+/**
+ * Scrollable wrapper around a table; pair it with the other table components.
+ */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
@@ -14,10 +17,16 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   );
 }
 
+/**
+ * Group of header rows.
+ */
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return <thead data-slot="table-header" className={cn("[&_tr]:border-b", className)} {...props} />;
 }
 
+/**
+ * Group of body rows.
+ */
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
@@ -28,6 +37,9 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   );
 }
 
+/**
+ * Group of footer rows.
+ */
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
     <tfoot
@@ -38,6 +50,9 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   );
 }
 
+/**
+ * Body row with hover and selected styling.
+ */
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
@@ -51,6 +66,9 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   );
 }
 
+/**
+ * Header cell.
+ */
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
@@ -64,10 +82,16 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   );
 }
 
+/**
+ * Body cell.
+ */
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return <td data-slot="table-cell" className={cn("p-2 align-middle", className)} {...props} />;
 }
 
+/**
+ * Caption rendered below the table.
+ */
 function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
   return (
     <caption

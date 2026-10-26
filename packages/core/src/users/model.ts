@@ -43,6 +43,9 @@ export function isValidEmailAddress(value: string): boolean {
 
 export type PublicUser = Omit<User, "passwordHash" | "passwordChangedAt">;
 
+/**
+ * Drops password data so a user is safe to return over HTTP.
+ */
 export function toPublicUser(user: User): PublicUser {
   return {
     username: user.username,

@@ -14,6 +14,9 @@ import type { NewUser, User } from "./model.ts";
 import { isValidEmailAddress } from "./model.ts";
 import { hashPassword } from "./password.ts";
 
+/**
+ * Raised when creating a user whose username already exists.
+ */
 export class UsernameTakenError extends Error {
   constructor(username: string) {
     super(`Username "${username}" is already taken`);
@@ -44,6 +47,9 @@ function isConditionalCheckFailed(error: unknown): boolean {
   );
 }
 
+/**
+ * Stores users in DynamoDB keyed by username, hashing passwords before they are written.
+ */
 export class UserRepository {
   readonly #client: DynamoDBDocumentClient;
   readonly #tableName: string;
@@ -53,6 +59,11 @@ export class UserRepository {
     this.#tableName = options.tableName;
   }
 
+  /**
+   * Creates a user with a hashed password.
+   *
+   * @throws {UsernameTakenError} When the username already exists.
+   */
   async createUser(input: NewUser): Promise<User> {
     const now = new Date().toISOString();
     const email = input.email.trim();
@@ -94,6 +105,9 @@ export class UserRepository {
     return user;
   }
 
+  /**
+   * Reads one user by username.
+   */
   async getUser(username: string): Promise<User | undefined> {
     const result = await this.#client.send(
       new GetCommand({ TableName: this.#tableName, Key: { username } }),
@@ -101,6 +115,9 @@ export class UserRepository {
     return result.Item as User | undefined;
   }
 
+  /**
+   * Reads one user by id from the id index.
+   */
   async getUserById(id: string): Promise<User | undefined> {
     const result = await this.#client.send(
       new QueryCommand({
@@ -114,11 +131,20 @@ export class UserRepository {
     return result.Items?.[0] as User | undefined;
   }
 
+  /**
+   * Lists every user.
+   */
   async listUsers(): Promise<User[]> {
     const result = await this.#client.send(new ScanCommand({ TableName: this.#tableName }));
     return (result.Items ?? []) as User[];
   }
 
+  /**
+   * Applies the supplied fields, hashing a new password and bumping `passwordChangedAt` so existing
+   * sessions stop working.
+   *
+   * Fails when the user does not exist.
+   */
   async updateUser(username: string, changes: UpdateUserInput): Promise<User> {
     const now = new Date().toISOString();
     const fields: Record<string, unknown> = { updatedAt: now };
@@ -165,6 +191,10 @@ export class UserRepository {
   }
 }
 
+/**
+ * Creates a repository for the users table, using the default DynamoDB client when none is
+ * supplied.
+ */
 export function createUserRepository(
   tableName: string,
   client?: DynamoDBDocumentClient,
