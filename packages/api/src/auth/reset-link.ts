@@ -5,6 +5,9 @@ export const DEFAULT_ADMIN_BASE_URL = "http://localhost:3001";
  * the same admin route so both flows meet the same page.
  */
 export function buildResetUrl(adminBaseUrl: string, token: string): string {
-  const baseUrl = adminBaseUrl.replace(/\/+$/, "");
-  return `${baseUrl}/reset?token=${encodeURIComponent(token)}`;
+  let end = adminBaseUrl.length;
+  while (end > 0 && adminBaseUrl[end - 1] === "/") {
+    end -= 1;
+  }
+  return `${adminBaseUrl.slice(0, end)}/reset?token=${encodeURIComponent(token)}`;
 }
