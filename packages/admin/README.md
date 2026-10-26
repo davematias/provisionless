@@ -12,6 +12,18 @@ npm run dev --workspace=@provisionless/admin
 
 The app runs at http://localhost:3000.
 
+## Security headers
+
+`next.config.ts` sends a baseline set of browser security headers on every route: a
+Content-Security-Policy, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` (with
+`frame-ancestors` in the policy), `Strict-Transport-Security`, and `Permissions-Policy`.
+
+The policy allows inline scripts and styles because the App Router bootstraps with inline scripts and
+the design system theme script runs before hydration; a nonce-based policy would force every page to
+render dynamically. `NEXT_PUBLIC_API_URL`'s origin is added to `connect-src`, and development adds
+the eval and websocket sources Next.js needs. The definitions live in
+`src/lib/security-headers.ts` and are covered by unit tests.
+
 ## Login
 
 `/login` posts the credentials to the API (`${NEXT_PUBLIC_API_URL}/auth/login`) with
