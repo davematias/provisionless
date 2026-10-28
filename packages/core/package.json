@@ -34,11 +34,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1135.0",
-    "@aws-sdk/lib-dynamodb": "3.1135.0"
+    "@aws-sdk/client-dynamodb": "3.1156.0",
+    "@aws-sdk/lib-dynamodb": "3.1156.0"
   },
   "devDependencies": {
-    "@types/node": "26.6.1",
+    "@types/node": "26.6.5",
     "dynalite": "4.0.0"
   }
 }
