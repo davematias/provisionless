@@ -75,5 +75,6 @@ The wordmark uses a system sans-serif stack, so regenerate on macOS to match the
   then; the website README uses `https://provisionless.dev` as the example.
 - Topics: `cms`, `headless-cms`, `serverless`, `aws`, `lambda`, `dynamodb`, `typescript`, `nextjs`,
   `hono`.
-- Social preview: upload `png/social-preview-1280x640.png` under Settings → General → Social
-  preview. GitHub has no API for this image, so it is a manual step.
+- Social preview: `png/social-preview-1280x640.png` is ready to upload under Settings → General →
+  Social preview. GitHub only exposes that section once the repository is public (or after an image
+  was uploaded to it before), and has no API for it, so this is a manual step at public launch.
