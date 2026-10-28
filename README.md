@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="brand/lockup-dark.svg">
-  <img src="brand/lockup.svg" alt="Provisionless logo" width="200">
+  <img src="brand/lockup.svg" alt="Provisionless logo" width="220">
 </picture>
 
 # Provisionless
