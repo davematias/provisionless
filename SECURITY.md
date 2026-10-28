@@ -18,4 +18,5 @@ maintained separately.
 
 CI runs a dependency audit, gitleaks secret scanning, CodeQL static analysis, and the unit and
 integration tests on every pull request. See [docs/repository-settings.md](docs/repository-settings.md)
-for the repository security settings and [README.md](README.md) for the local commands.
+for the repository security settings and [docs/quality-and-security.md](docs/quality-and-security.md)
+for the local commands.
