@@ -15,6 +15,7 @@
   "scripts": {
     "build": "turbo run build",
     "audit": "npm run audit --workspace=@provisionless/tooling",
+    "brand:export": "node brand/export.mjs",
     "openapi:generate": "npm run build --workspace=@provisionless/core && npm run openapi:generate --workspace=@provisionless/api",
     "openapi:check": "npm run build --workspace=@provisionless/core && npm run openapi:check --workspace=@provisionless/api",
     "test": "turbo run test",
@@ -42,6 +43,7 @@
     "lint-staged": "17.6.0",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
+    "sharp": "0.35.5",
     "turbo": "2.10.12",
     "typescript": "6.0.3",
     "vitest": "4.1.12"

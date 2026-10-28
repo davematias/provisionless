@@ -1,4 +1,4 @@
-import { ThemeToggle } from "@provisionless/design-system";
+import { Logo, ThemeToggle } from "@provisionless/design-system";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -16,8 +16,8 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-svh bg-background text-foreground">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/30 md:flex">
         <div className="flex h-14 items-center border-b border-border px-4">
-          <Link href="/" className="text-sm font-semibold tracking-tight">
-            Provisionless
+          <Link href="/" className="transition-opacity hover:opacity-80">
+            <Logo />
           </Link>
         </div>
         <nav aria-label="Admin" className="flex-1 p-3">
