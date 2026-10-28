@@ -18,3 +18,5 @@ codeql-results/
 .env.*
 
 .provisionless
+
+.DS_Store
