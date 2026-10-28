@@ -37,7 +37,7 @@
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
     "@aws-sdk/client-dynamodb": "3.1135.0",
-    "@aws-sdk/lib-dynamodb": "3.1135.0",
+    "@aws-sdk/lib-dynamodb": "3.1156.0",
     "@hono/node-server": "2.1.1",
     "@types/node": "26.6.1",
     "dynalite": "4.0.0"
