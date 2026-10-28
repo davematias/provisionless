@@ -41,7 +41,8 @@ with bypass mode `pull_request`.
 
 The names must match the job names in `.github/workflows/ci.yml` and
 `.github/workflows/pr-title.yml`. Renaming a job means updating the ruleset; otherwise pull requests
-wait forever for a check that will never report under the old name.
+wait forever for a check that will never report under the old name. For what each check does and how
+to run it locally, see [quality-and-security.md](quality-and-security.md).
 
 ## Security features
 
