@@ -3,17 +3,30 @@
 Some launch-critical settings live in GitHub rather than in this repository. This page records the
 current values and how to change them so they can be reviewed and restored.
 
-## `main` ruleset
+## `main` rulesets
 
-The default branch is protected by the repository ruleset `main` (Settings → Rules → Rulesets). It
-applies to `main` and has no bypass actors, so administrators are covered too.
+The default branch is protected by two repository rulesets (Settings → Rules → Rulesets). Both apply
+to `main`, and rulesets are cumulative.
+
+### `main checks`
+
+This ruleset has no bypass actors, so it applies to everyone, including administrators.
+
+- Force pushes and branch deletion are blocked.
+- Required status checks must pass, and the branch must be up to date with `main` before merging.
+
+### `main reviews`
+
+This ruleset holds the review requirements and has one bypass actor: the repository admin role,
+with bypass mode `pull_request`.
 
 - Changes merge only through a pull request.
 - Squash merges only.
-- Force pushes and branch deletion are blocked.
 - All review conversations must be resolved.
-- No approving review is required, so the solo maintainer can merge their own pull requests.
-- Required status checks must pass, and the branch must be up to date with `main` before merging.
+- One approving review is required. GitHub does not allow approving your own pull request, so the
+  admin bypass is how the sole maintainer merges their own work. The bypass only applies when
+  merging a pull request and only bypasses this ruleset; the required checks in `main checks` still
+  apply.
 
 ### Required checks
 
@@ -46,7 +59,7 @@ Code scanning uses the workflow rather than GitHub's default setup because the p
 
 ## Changing the settings
 
-Use the GitHub UI or the API. The ruleset and security toggles can be inspected and updated with:
+Use the GitHub UI or the API. The rulesets and security toggles can be inspected and updated with:
 
 ```bash
 gh api repos/davematias/provisionless/rulesets
@@ -64,8 +77,10 @@ verify it with a pull request.
 
 - A direct push to `main` is rejected.
 - A pull request with a failing required check cannot merge.
+- A pull request without an approval is blocked for contributors; the admin can still merge their own
+  through the review ruleset bypass.
 - A compliant pull request merges with a squash commit.
-- `gh api repos/davematias/provisionless/rulesets` lists the active ruleset.
+- `gh api repos/davematias/provisionless/rulesets` lists both active rulesets.
 
 ## Social preview
 
