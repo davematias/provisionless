@@ -10,3 +10,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

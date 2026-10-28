@@ -41,6 +41,8 @@ Dependabot opens version and security update PRs from the root npm workspace. It
   `npm ci`.
 - `commit-message.prefix` plus `include: "scope"` produces conventional titles such as
   `chore(deps): Bump ...` or `chore(deps-dev): Bump ...`, so the `Validate PR title` check passes.
+- `groups` batches minor and patch version updates into one `npm-minor-patch` PR so the queue stays
+  manageable. Security updates remain individual, because grouping does not apply to them.
 
 ## Secret scanning
 
