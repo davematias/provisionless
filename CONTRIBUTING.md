@@ -13,9 +13,11 @@ Open an issue describing the problem, what you expected, and how to reproduce it
 3. Add or update tests where relevant.
 4. Open a pull request describing the change and its motivation.
 
-All changes land through pull requests: `main` is protected by a ruleset that requires the CI checks
-and blocks force pushes and deletion. See [docs/repository-settings.md](docs/repository-settings.md)
-for the required checks and the other repository settings.
+All changes land through pull requests: `main` is protected by rulesets that require the CI checks
+and one approving review, and block force pushes and deletion. The repository admin can bypass the
+review requirement to merge their own work; the checks have no bypass. See
+[docs/repository-settings.md](docs/repository-settings.md) for the required checks and the other
+repository settings.
 
 ## Engineering standards
 
