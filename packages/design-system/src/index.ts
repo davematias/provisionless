@@ -1,4 +1,6 @@
 export { cn } from "./lib/utils.ts";
+export { Logo } from "./components/logo.tsx";
+export type { LogoProps } from "./components/logo.tsx";
 export { Alert, AlertDescription, AlertTitle } from "./components/ui/alert.tsx";
 export { Button, buttonVariants } from "./components/ui/button.tsx";
 export {

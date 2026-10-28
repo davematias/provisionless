@@ -15,6 +15,27 @@ export const metadata: Metadata = {
     template: `%s | ${site.name}`,
   },
   description: site.description,
+  openGraph: {
+    type: "website",
+    url: site.siteUrl,
+    siteName: site.name,
+    title: site.name,
+    description: site.description,
+    images: [
+      {
+        url: "/social-preview.png",
+        width: 1280,
+        height: 640,
+        alt: "Provisionless — a serverless, headless CMS",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: site.name,
+    description: site.description,
+    images: ["/social-preview.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

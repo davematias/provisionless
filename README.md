@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/lockup-dark.svg">
+  <img src="brand/lockup.svg" alt="Provisionless logo" width="200">
+</picture>
+
 # Provisionless
 
 A serverless, headless CMS.

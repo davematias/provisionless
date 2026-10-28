@@ -11,6 +11,7 @@ import {
   CardTitle,
   Input,
   Label,
+  Logo,
 } from "@provisionless/design-system";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
@@ -70,6 +71,7 @@ function LoginForm() {
     <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <Logo showWordmark={false} className="mb-3" markClassName="size-10" />
           <CardTitle>Sign in</CardTitle>
           <CardDescription>Sign in to manage your content.</CardDescription>
         </CardHeader>
