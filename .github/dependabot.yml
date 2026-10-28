@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    # The npm workspace lockfile lives at the repository root, so Dependabot must run from here to
+    # regenerate it. Pointing at a workspace directory produces manifest-only PRs that fail npm ci.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore"
+      include: "scope"

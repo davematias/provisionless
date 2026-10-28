@@ -31,6 +31,17 @@ being accepted and must be re-reviewed:
 ]
 ```
 
+### Dependabot
+
+Dependabot opens version and security update PRs from the root npm workspace. Its configuration is
+`.github/dependabot.yml`:
+
+- `directory: "/"` makes Dependabot resolve the whole workspace and update the root
+  `package-lock.json`. Pointing it at a workspace directory produces manifest-only PRs that fail
+  `npm ci`.
+- `commit-message.prefix` plus `include: "scope"` produces conventional titles such as
+  `chore(deps): Bump ...` or `chore(deps-dev): Bump ...`, so the `Validate PR title` check passes.
+
 ## Secret scanning
 
 CI runs [gitleaks](https://github.com/gitleaks/gitleaks) over the commits in every pull request and
