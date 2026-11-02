@@ -256,6 +256,13 @@ Husky installs Git hooks when you run `npm install`. The `commit-msg` hook valid
 
 Pull request titles follow the same format and are validated in CI. When squash merging, use the pull request title as the commit message.
 
+## Releasing
+
+Releases are automated with release-please. Merge conventional commits to `main`; the `Release
+Please` workflow opens or updates a release pull request with version bumps and changelog entries.
+Merging it creates the matching tags and GitHub releases. See
+[docs/releases.md](docs/releases.md) for the package layout, token setup, and verification steps.
+
 ## Developer Certificate of Origin (DCO)
 
 Every commit must be signed off. This certifies that you wrote the code or otherwise have the right to submit it, under the [Developer Certificate of Origin v1.1](https://developercertificate.org/).
