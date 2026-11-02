@@ -197,6 +197,7 @@ it("creates the reset tokens table with a tokenHash key and expiry TTL", async (
     AttributeName: "expiresAt",
     Enabled: true,
   });
+  expect(commands.at(-1)).toBeInstanceOf(UpdateTimeToLiveCommand);
 });
 
 it("reuses an existing reset tokens table", async () => {

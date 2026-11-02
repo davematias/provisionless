@@ -1,0 +1,48 @@
+name: Release artifacts
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: release-artifacts-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy-artifacts:
+    name: Build deploy artifacts
+    if: startsWith(github.event.release.tag_name, 'provisionless-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Use the pinned npm
+        run: npm install -g npm@11.9.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: npm run build
+
+      - name: Build deploy artifacts
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: node packages/cli/dist/scripts/build-release-artifacts.js --version "${VERSION#provisionless-v}" --out "$RUNNER_TEMP/release"
+
+      - name: Attach artifacts to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP/release"/* --clobber

@@ -54,7 +54,7 @@ import { loadConfig, resolveAppPrefix, resolveRegion } from "../config/config.ts
 import { isAwsError, sleep } from "../util/aws.ts";
 import { createLogger } from "../util/log.ts";
 import { confirm, createPrompter } from "../util/prompt.ts";
-import { findRepoRoot } from "../util/repo.ts";
+import { resolveProjectRoot } from "../util/repo.ts";
 import type { DeployContext } from "./context.ts";
 
 const BASIC_EXECUTION_POLICY = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole";
@@ -491,7 +491,7 @@ export async function teardown(ctx: DeployContext, keepData: boolean): Promise<v
 }
 
 export async function undeploy(options: UndeployOptions): Promise<void> {
-  const repoRoot = findRepoRoot(process.cwd());
+  const repoRoot = resolveProjectRoot(process.cwd()).directory;
   const log = createLogger();
   const prompter = createPrompter();
 

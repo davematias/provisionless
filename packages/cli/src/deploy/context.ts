@@ -6,6 +6,8 @@ export interface DeployContext {
   accountId: string;
   dryRun: boolean;
   repoRoot: string;
+  /** Whether the project root is a Provisionless source checkout; defaults to true. */
+  checkout?: boolean;
   appPrefix: string;
   mediaBucket: string;
   emailFrom?: string;
