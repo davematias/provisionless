@@ -12,5 +12,5 @@
   "bracketSameLine": false,
   "bracketSpacing": true,
   "sortPackageJson": false,
-  "ignorePatterns": ["openapi.json"]
+  "ignorePatterns": ["openapi.json", "CHANGELOG.md", "**/CHANGELOG.md"]
 }
