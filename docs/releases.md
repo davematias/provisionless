@@ -67,6 +67,13 @@ and it still has the permissions above.
 The first release is derived from the conventional commits since the beginning of the repository, so
 it may be larger than later ones.
 
+### Bootstrapping the first release
+
+`release-please-config.json` currently pins both packages to `0.1.0` with `release-as`. This is a
+temporary bootstrap: the first node release would otherwise default to `1.0.0`, and the CLI has no
+conventional `feat`/`fix` commits in range yet. Remove the `release-as` entries after the first
+release pull request is merged.
+
 ## Verifying a release
 
 - `gh run list --workflow "Release Please"` shows the workflow runs.
