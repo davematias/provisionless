@@ -69,10 +69,9 @@ it may be larger than later ones.
 
 ### Bootstrapping the first release
 
-`release-please-config.json` currently pins both packages to `0.1.0` with `release-as`. This is a
-temporary bootstrap: the first node release would otherwise default to `1.0.0`, and the CLI has no
-conventional `feat`/`fix` commits in range yet. Remove the `release-as` entries after the first
-release pull request is merged.
+The first root release was bootstrapped at `0.1.0` with `release-as`, because the node releaser would
+otherwise start at `1.0.0` and the CLI had no conventional `feat`/`fix` commits yet. Those pins have
+been removed; the CLI will be released by its first `feat(cli)` or `fix(cli)` commit.
 
 ## Verifying a release
 
