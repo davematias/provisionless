@@ -37,6 +37,7 @@ import {
   GetQueueUrlCommand,
 } from "@aws-sdk/client-sqs";
 
+import { resolveAdminArtifact } from "../artifacts/resolve.ts";
 import {
   addInvokePermission,
   deployFunction,
@@ -54,6 +55,7 @@ import {
 import { ensureBucket } from "../aws/s3.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
+import { cliVersion } from "../version.ts";
 import type { DeployContext } from "./context.ts";
 
 const CACHING_DISABLED_POLICY = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad";
@@ -508,6 +510,19 @@ export async function configureAdminDns(
   );
 }
 
+function viewerCertificateForUpdate(
+  desired: DistributionConfig["ViewerCertificate"],
+  existing: DistributionConfig["ViewerCertificate"],
+): DistributionConfig["ViewerCertificate"] {
+  if (!desired?.CloudFrontDefaultCertificate) {
+    return desired;
+  }
+  if (existing?.CloudFrontDefaultCertificate) {
+    return existing;
+  }
+  return { CloudFrontDefaultCertificate: true, MinimumProtocolVersion: "TLSv1" };
+}
+
 export function buildDistributionConfig(
   output: OpenNextOutput,
   origins: Origin[],
@@ -610,24 +625,67 @@ async function uploadDirectory(
   await walk(localDir);
 }
 
-export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<AdminDeployment> {
-  const openNextDir = join(ctx.repoRoot, "packages", "admin", ".open-next");
-  const outputPath = join(openNextDir, "open-next.output.json");
-
-  if (ctx.dryRun) {
-    if (!existsSync(outputPath)) {
-      throw new Error(
-        "No OpenNext build found. Run `npm run build:lambda --workspace=@provisionless/admin` first.",
+export async function ensureRevalidationEventSource(
+  ctx: DeployContext,
+  functionName: string,
+  queueArn: string,
+  delayMs = 2000,
+): Promise<void> {
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    try {
+      await ctx.clients.lambda.send(
+        new CreateEventSourceMappingCommand({
+          FunctionName: functionName,
+          EventSourceArn: queueArn,
+          BatchSize: 1,
+          Enabled: true,
+        }),
       );
+      return;
+    } catch (error) {
+      if (isAwsError(error, "ResourceConflictException")) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes("does not have permissions to call ReceiveMessage") || attempt === 14) {
+        throw error;
+      }
+      ctx.log("waiting for the revalidation role permissions to propagate");
+      await sleep(delayMs);
     }
-  } else {
-    ctx.log("building admin Lambda bundle (open-next build)");
-    execFileSync("npm", ["run", "build:lambda", "--workspace=@provisionless/admin"], {
-      cwd: ctx.repoRoot,
-      stdio: "inherit",
-      env: { ...process.env, NEXT_PUBLIC_API_URL: apiUrl },
-    });
   }
+}
+
+export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<AdminDeployment> {
+  let openNextDir: string;
+
+  if (ctx.checkout === false) {
+    openNextDir = await resolveAdminArtifact({
+      version: cliVersion(),
+      apiUrl,
+      log: ctx.log,
+    });
+  } else {
+    openNextDir = join(ctx.repoRoot, "packages", "admin", ".open-next");
+    const outputPath = join(openNextDir, "open-next.output.json");
+
+    if (ctx.dryRun) {
+      if (!existsSync(outputPath)) {
+        throw new Error(
+          "No OpenNext build found. Run `npm run build:lambda --workspace=@provisionless/admin` first.",
+        );
+      }
+    } else {
+      ctx.log("building admin Lambda bundle (open-next build)");
+      execFileSync("npm", ["run", "build:lambda", "--workspace=@provisionless/admin"], {
+        cwd: ctx.repoRoot,
+        stdio: "inherit",
+        env: { ...process.env, NEXT_PUBLIC_API_URL: apiUrl },
+      });
+    }
+  }
+
+  const outputPath = join(openNextDir, "open-next.output.json");
 
   const output = JSON.parse(readFileSync(outputPath, "utf8")) as OpenNextOutput;
   const names = adminNames(ctx.appPrefix, ctx.accountId);
@@ -780,7 +838,10 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
             HttpVersion: "http2and3",
             PriceClass: "PriceClass_100",
             Aliases: desired.Aliases,
-            ViewerCertificate: desired.ViewerCertificate,
+            ViewerCertificate: viewerCertificateForUpdate(
+              desired.ViewerCertificate,
+              existing.config.ViewerCertificate,
+            ),
             Origins: { Quantity: mergedOrigins.length, Items: mergedOrigins },
             DefaultCacheBehavior: {
               ...existing.config.DefaultCacheBehavior,
@@ -913,20 +974,7 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
   await uploadDirectory(ctx, join(openNextDir, "cache"), assetsBucket, "_cache");
 
   if (!ctx.dryRun) {
-    try {
-      await ctx.clients.lambda.send(
-        new CreateEventSourceMappingCommand({
-          FunctionName: revalidationName,
-          EventSourceArn: queueArn,
-          BatchSize: 1,
-          Enabled: true,
-        }),
-      );
-    } catch (error) {
-      if (!isAwsError(error, "ResourceConflictException")) {
-        throw error;
-      }
-    }
+    await ensureRevalidationEventSource(ctx, revalidationName, queueArn);
   }
 
   const url =

@@ -100,9 +100,9 @@ without the flag can still reuse them.
 ### App prefix and saved config
 
 Deployments are namespaced by an app prefix. When `--prefix` is not passed, the CLI prompts for one
-and saves it (with other deployment settings) to a local `.provisionless` file in the repository
-root. On later runs it offers to reuse the saved prefix. `.provisionless` is gitignored and must
-never be committed.
+and saves it (with other deployment settings) to a local `.provisionless` file in the current project
+directory (the repository root inside a source checkout). On later runs it offers to reuse the saved
+prefix. `.provisionless` is gitignored and must never be committed.
 
 ### Media bucket
 
@@ -134,8 +134,9 @@ instead of being emailed, which keeps the flow usable in local development. User
 address for SES delivery; users created before email was required log a warning until one is set.
 Undeploy leaves SES identities in place because they can be shared with other applications.
 
-`deploy` bundles the API, builds the admin website with
-[OpenNext](https://opennext.js.org/aws), and provisions:
+`deploy` builds the API bundle and the admin website (with
+[OpenNext](https://opennext.js.org/aws)) when it runs from a source checkout; outside a checkout it
+downloads the prebuilt artifacts for its version instead. Either way it provisions:
 
 - **API** — a Lambda function behind an API Gateway HTTP API, plus DynamoDB tables for users,
   password reset tokens, content types, and content entries.
@@ -146,6 +147,20 @@ Undeploy leaves SES identities in place because they can be shared with other ap
 It uses the standard AWS credential chain. The caller must be allowed to manage IAM, Lambda,
 API Gateway, S3, DynamoDB, SQS, and CloudFront. Running it again updates the existing
 resources in place.
+
+### Deploy artifacts
+
+Deploying needs two build outputs: the admin OpenNext bundle and the API Lambda package. In a
+Provisionless source checkout the CLI builds them locally. Anywhere else it downloads the artifacts
+for its own version from the matching GitHub release, verifies their SHA-256 checksums, and caches
+them, so `npx provisionless deploy` works from an empty directory.
+
+- `PROVISIONLESS_CACHE_DIR` overrides the cache location (by default the OS user cache directory,
+  for example `~/Library/Caches/provisionless` on macOS).
+- `PROVISIONLESS_RELEASE_BASE_URL` points artifact downloads at another release mirror.
+
+See [docs/releases.md](../../docs/releases.md#deploy-artifacts) for the asset names, checksum
+metadata, cache layout, and release workflow.
 
 ## Local development
 

@@ -1,7 +1,3 @@
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import {
   CreateApiCommand,
   CreateApiMappingCommand,
@@ -25,8 +21,9 @@ import {
   UpdateTimeToLiveCommand,
   type CreateTableCommandInput,
 } from "@aws-sdk/client-dynamodb";
-import { build } from "esbuild";
 
+import { bundleApi } from "../artifacts/api-bundle.ts";
+import { resolveApiArtifact } from "../artifacts/resolve.ts";
 import {
   addInvokePermission,
   deployFunction,
@@ -37,29 +34,9 @@ import {
 import { apiNames } from "../aws/names.ts";
 import { resolveHostedZoneId, upsertAliasRecords, type AliasTarget } from "../aws/route53.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
-import { zipFile } from "../util/zip.ts";
+import { cliVersion } from "../version.ts";
 import type { DeployContext } from "./context.ts";
 import { ensureEmailIdentity } from "./email.ts";
-
-async function bundleApi(repoRoot: string): Promise<Buffer> {
-  const outfile = join(mkdtempSync(join(tmpdir(), "provisionless-api-")), "index.mjs");
-  await build({
-    entryPoints: [join(repoRoot, "packages", "api", "src", "lambda.ts")],
-    bundle: true,
-    platform: "node",
-    target: "node22",
-    format: "esm",
-    outfile,
-    logLevel: "silent",
-    alias: {
-      "@provisionless/core": join(repoRoot, "packages", "core", "src", "index.ts"),
-    },
-    banner: {
-      js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);",
-    },
-  });
-  return zipFile("index.mjs", new Uint8Array(readFileSync(outfile)));
-}
 
 async function findApiId(ctx: DeployContext): Promise<string | undefined> {
   const { api } = apiNames(ctx.appPrefix);
@@ -331,18 +308,18 @@ export async function ensureResetTokensTable(ctx: DeployContext): Promise<string
       BillingMode: "PAY_PER_REQUEST",
     }),
   );
-  await ctx.clients.dynamodb.send(
-    new UpdateTimeToLiveCommand({
-      TableName: resetTokensTable,
-      TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
-    }),
-  );
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const result = await ctx.clients.dynamodb.send(
       new DescribeTableCommand({ TableName: resetTokensTable }),
     );
     if (result.Table?.TableStatus === "ACTIVE") {
+      await ctx.clients.dynamodb.send(
+        new UpdateTimeToLiveCommand({
+          TableName: resetTokensTable,
+          TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+        }),
+      );
       return resetTokensTable;
     }
     await sleep(2000);
@@ -463,8 +440,16 @@ export async function configureApiAuth(
 
 export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<string> {
   const names = apiNames(ctx.appPrefix);
-  ctx.log("bundling API Lambda");
-  const zip = ctx.dryRun ? Buffer.alloc(0) : await bundleApi(ctx.repoRoot);
+  let zip: Buffer = Buffer.alloc(0);
+  if (!ctx.dryRun) {
+    if (ctx.checkout === false) {
+      ctx.log("resolving API Lambda deploy artifact");
+      zip = await resolveApiArtifact({ version: cliVersion(), log: ctx.log });
+    } else {
+      ctx.log("bundling API Lambda");
+      zip = await bundleApi(ctx.repoRoot);
+    }
+  }
   const tableName = await ensureUsersTable(ctx);
   const resetTokensTable = await ensureResetTokensTable(ctx);
   const contentTypesTable = await ensureContentTypesTable(ctx);

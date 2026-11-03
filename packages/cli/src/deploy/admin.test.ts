@@ -30,6 +30,7 @@ import {
   configureAdminDns,
   deployAdmin,
   ensureRedirectFunction,
+  ensureRevalidationEventSource,
   redirectFunctionCode,
   type AdminDomainConfig,
   type OpenNextOutput,
@@ -630,4 +631,119 @@ it("wires the admin domain through a dry-run deployment", async () => {
         command instanceof CreateDistributionCommand,
     ),
   ).toBe(false);
+});
+
+function revalidationContext(
+  send: (command: unknown) => Promise<unknown>,
+  logs: string[] = [],
+): DeployContext {
+  return {
+    region: "us-east-1",
+    accountId: "111122223333",
+    dryRun: false,
+    repoRoot: ".",
+    appPrefix: "demo",
+    mediaBucket: "demo-media",
+    log: (message: string) => logs.push(message),
+    clients: { lambda: { send } } as unknown as AwsClients,
+  };
+}
+
+it("retries the revalidation event source while IAM permissions propagate", async () => {
+  let attempts = 0;
+  const logs: string[] = [];
+  const ctx = revalidationContext(async () => {
+    attempts += 1;
+    if (attempts === 1) {
+      const error = new Error(
+        "The function execution role does not have permissions to call ReceiveMessage on SQS",
+      );
+      error.name = "InvalidParameterValueException";
+      throw error;
+    }
+    return {};
+  }, logs);
+
+  await ensureRevalidationEventSource(ctx, "demo-revalidation", "arn:sqs", 0);
+
+  expect(attempts).toBe(2);
+  expect(logs.some((message) => message.includes("permissions to propagate"))).toBe(true);
+});
+
+it("does not retry when the revalidation event source already exists", async () => {
+  let attempts = 0;
+  const ctx = revalidationContext(async () => {
+    attempts += 1;
+    const error = new Error("The event source mapping already exists");
+    error.name = "ResourceConflictException";
+    throw error;
+  });
+
+  await ensureRevalidationEventSource(ctx, "demo-revalidation", "arn:sqs", 0);
+
+  expect(attempts).toBe(1);
+});
+
+it("keeps the default CloudFront certificate on a re-deploy without a domain", async () => {
+  const commands: unknown[] = [];
+  const probes = { dev: 0, live: 0, oac: 0 };
+  const existingCertificate = {
+    CloudFrontDefaultCertificate: true,
+    SSLSupportMethod: "vip",
+    MinimumProtocolVersion: "TLSv1",
+  };
+  const existingConfig = {
+    CallerReference: "demo-admin-1",
+    Comment: "demo-admin",
+    Enabled: true,
+    HttpVersion: "http2and3",
+    PriceClass: "PriceClass_100",
+    Aliases: { Quantity: 0 },
+    Origins: { Quantity: 0, Items: [] },
+    DefaultCacheBehavior: {
+      TargetOriginId: "default",
+      ViewerProtocolPolicy: "redirect-to-https",
+      AllowedMethods: { Quantity: 3, Items: ["GET", "HEAD", "OPTIONS"] },
+      CachedMethods: { Quantity: 2, Items: ["GET", "HEAD"] },
+      CachePolicyId: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+    },
+    CacheBehaviors: { Quantity: 0, Items: [] },
+    ViewerCertificate: existingCertificate,
+  };
+  const respond = (command: unknown): unknown => {
+    if (command instanceof ListDistributionsCommand) {
+      return {
+        DistributionList: {
+          Items: [
+            {
+              Id: "DIST1",
+              Comment: "demo-admin",
+              Enabled: true,
+              Status: "Deployed",
+              DomainName: "dist.cloudfront.net",
+            },
+          ],
+        },
+      };
+    }
+    if (command instanceof GetDistributionCommand) {
+      return {
+        Distribution: {
+          Id: "DIST1",
+          DomainName: "dist.cloudfront.net",
+          DistributionConfig: existingConfig,
+        },
+        ETag: "ET1",
+      };
+    }
+    return stubAws(probes)(command);
+  };
+  const ctx = createFullContext(commands, respond, [], { dryRun: false });
+
+  await deployAdmin(ctx, "https://api.example.test");
+
+  const update = commands.find(
+    (command) => command instanceof UpdateDistributionCommand,
+  ) as unknown as { input: { DistributionConfig?: DomainConfigInput } };
+  expect(update.input.DistributionConfig?.ViewerCertificate).toEqual(existingCertificate);
 });

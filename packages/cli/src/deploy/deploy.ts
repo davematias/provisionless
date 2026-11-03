@@ -11,7 +11,7 @@ import {
 } from "../config/config.ts";
 import { createLogger } from "../util/log.ts";
 import { createPrompter } from "../util/prompt.ts";
-import { findRepoRoot } from "../util/repo.ts";
+import { resolveProjectRoot } from "../util/repo.ts";
 import { deployAdmin } from "./admin.ts";
 import { configureApiAuth, deployApi } from "./api.ts";
 import { ensureCertificates } from "./certificates.ts";
@@ -26,7 +26,8 @@ export interface DeployResult {
 }
 
 export async function deploy(options: DeployOptions): Promise<DeployResult> {
-  const repoRoot = findRepoRoot(process.cwd());
+  const project = resolveProjectRoot(process.cwd());
+  const repoRoot = project.directory;
   const log = createLogger();
   const prompter = createPrompter();
 
@@ -90,6 +91,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       accountId,
       dryRun: options.dryRun,
       repoRoot,
+      checkout: project.checkout,
       appPrefix,
       mediaBucket,
       emailFrom,
