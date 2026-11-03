@@ -70,8 +70,8 @@ it may be larger than later ones.
 ### Bootstrapping the first release
 
 The root and CLI first releases were bootstrapped at `0.1.0` with `release-as`, because the node
-releaser would otherwise start them at `1.0.0`. The pins are temporary: remove them once the first
-release exists. Later releases are driven by conventional commits.
+releaser would otherwise start them at `1.0.0`. Those pins have been removed; later releases are
+driven by conventional commits.
 
 ## Deploy artifacts
 
