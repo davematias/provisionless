@@ -48,6 +48,9 @@ export function packageContentErrors(files: readonly string[]): string[] {
   if (!files.includes("README.md")) {
     errors.push("The npm package is missing README.md.");
   }
+  if (!files.includes("LICENSE")) {
+    errors.push("The npm package is missing LICENSE.");
+  }
   return errors;
 }
 
