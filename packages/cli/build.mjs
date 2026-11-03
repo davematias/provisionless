@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { copyFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,3 +26,7 @@ await build({
   },
   logLevel: "info",
 });
+
+// npm always includes a package-root LICENSE, so keep a generated copy next to package.json
+// instead of duplicating the repository license in git.
+await copyFile(join(root, "..", "..", "LICENSE"), join(root, "LICENSE"));

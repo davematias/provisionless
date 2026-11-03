@@ -138,9 +138,10 @@ the deploy artifacts are attached and:
 
 `npm run build --workspace=provisionless` bundles the CLI with esbuild and inlines
 `@provisionless/core`, so the published package has no dependency on that unpublished workspace
-package. Only `dist/index.js` is published, alongside the automatically included `package.json` and
-`README.md`. The release-artifact and package-verification scripts stay in `dist` for CI but are
-excluded from the tarball. Check the contents locally with:
+package. Only `dist/index.js` is published, alongside the automatically included `package.json`,
+`README.md`, and a generated copy of the repository `LICENSE`. The release-artifact and
+package-verification scripts stay in `dist` for CI but are excluded from the tarball. Check the
+contents locally with:
 
 ```bash
 npm run build --workspace=provisionless

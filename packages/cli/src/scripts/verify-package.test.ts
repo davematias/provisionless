@@ -22,20 +22,25 @@ it("fails when the tag and package version differ", () => {
 });
 
 it("accepts a package with only runtime files", () => {
-  expect(packageContentErrors(["README.md", "package.json", "dist/index.js"])).toEqual([]);
+  expect(packageContentErrors(["LICENSE", "README.md", "package.json", "dist/index.js"])).toEqual(
+    [],
+  );
 });
 
 it("reports unexpected files in the package", () => {
   expect(
-    packageContentErrors(["README.md", "package.json", "dist/index.js", "src/index.ts"]),
+    packageContentErrors(["LICENSE", "README.md", "package.json", "dist/index.js", "src/index.ts"]),
   ).toEqual(["Unexpected files in the npm package: src/index.ts."]);
 });
 
 it("reports missing runtime files", () => {
-  expect(packageContentErrors(["package.json", "README.md"])).toEqual([
+  expect(packageContentErrors(["LICENSE", "package.json", "README.md"])).toEqual([
     "The npm package is missing dist/index.js.",
   ]);
-  expect(packageContentErrors(["dist/index.js", "README.md"])).toEqual([
+  expect(packageContentErrors(["LICENSE", "dist/index.js", "README.md"])).toEqual([
     "The npm package is missing package.json.",
+  ]);
+  expect(packageContentErrors(["README.md", "package.json", "dist/index.js"])).toEqual([
+    "The npm package is missing LICENSE.",
   ]);
 });
