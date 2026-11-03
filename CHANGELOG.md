@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/davematias/provisionless/compare/provisionless-monorepo-v0.2.0...provisionless-monorepo-v0.2.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **cli:** include the license in the npm package ([#90](https://github.com/davematias/provisionless/issues/90)) ([8c55472](https://github.com/davematias/provisionless/commit/8c55472e84cc6d88bd94188a16c1fd6e2d1ec08d))
+
 ## [0.2.0](https://github.com/davematias/provisionless/compare/provisionless-monorepo-v0.1.0...provisionless-monorepo-v0.2.0) (2026-11-03)
 
 
