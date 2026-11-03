@@ -76,6 +76,9 @@ export async function download(url: string): Promise<Uint8Array> {
 export function writeFileAtomic(path: string, contents: Uint8Array | string): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+  // This download sink is intentional: paths come from the CLI cache directory and fixed release
+  // asset names, and archives are SHA-256 verified before they are written.
+  // codeql[js/http-to-file-access]
   writeFileSync(temporary, contents);
   renameSync(temporary, path);
 }
