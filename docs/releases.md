@@ -181,8 +181,10 @@ publishers only is recommended once the switch works.
 
 ### Retrying a publish
 
-`workflow_dispatch` with a release tag rebuilds the artifacts and retries the npm publish. It fails
-loudly when the tag, package version, release assets, or npm version do not match.
+`workflow_dispatch` with a release tag rebuilds the artifacts and retries the npm publish. It builds
+from the ref it runs on (pass `--ref main`), so it can bootstrap a tag that predates packaging
+changes; the package version on that ref must still match the tag. It fails loudly when the tag,
+package version, release assets, or npm version do not match.
 
 ## Verifying a release
 

@@ -29,7 +29,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.TAG }}
+          # A release builds the tag. A manual dispatch builds the ref it runs on, so it can
+          # bootstrap or retry a tag that predates packaging changes; the version check below
+          # still requires that ref's version to match the tag.
+          ref: ${{ github.event_name == 'release' && env.TAG || github.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -64,7 +67,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.TAG }}
+          # A release builds the tag. A manual dispatch builds the ref it runs on, so it can
+          # bootstrap or retry a tag that predates packaging changes; the version check below
+          # still requires that ref's version to match the tag.
+          ref: ${{ github.event_name == 'release' && env.TAG || github.ref }}
 
       - uses: actions/setup-node@v5
         with:
