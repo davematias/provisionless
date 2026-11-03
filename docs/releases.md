@@ -69,9 +69,9 @@ it may be larger than later ones.
 
 ### Bootstrapping the first release
 
-The first root release was bootstrapped at `0.1.0` with `release-as`, because the node releaser would
-otherwise start at `1.0.0` and the CLI had no conventional `feat`/`fix` commits yet. Those pins have
-been removed; the CLI will be released by its first `feat(cli)` or `fix(cli)` commit.
+The root and CLI first releases were bootstrapped at `0.1.0` with `release-as`, because the node
+releaser would otherwise start them at `1.0.0`. The pins are temporary: remove them once the first
+release exists. Later releases are driven by conventional commits.
 
 ## Deploy artifacts
 
