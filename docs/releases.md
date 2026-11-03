@@ -123,6 +123,69 @@ Inside a Provisionless source checkout the CLI keeps using the local build (`ope
 API bundle from source), so development does not download artifacts. Outside a checkout the current
 directory is the project root and `.provisionless` is written there.
 
+## npm publishing
+
+The `provisionless` CLI is published to npm by the same workflow. The `publish-npm` job runs after
+the deploy artifacts are attached and:
+
+- checks that the `provisionless-vX.Y.Z` tag matches `packages/cli/package.json`;
+- confirms the release carries both archives and the checksum file;
+- confirms the version is not already on npm;
+- asserts the tarball contains only runtime files;
+- publishes with provenance.
+
+### Package contents
+
+`npm run build --workspace=provisionless` bundles the CLI with esbuild and inlines
+`@provisionless/core`, so the published package has no dependency on that unpublished workspace
+package. Only `dist/index.js` is published, alongside the automatically included `package.json` and
+`README.md`. The release-artifact and package-verification scripts stay in `dist` for CI but are
+excluded from the tarball. Check the contents locally with:
+
+```bash
+npm run build --workspace=provisionless
+npm run verify:package --workspace=provisionless -- --tag provisionless-vX.Y.Z
+```
+
+### First publish and authentication
+
+Trusted publishing cannot be configured before the package exists, so the first publish uses a
+granular npm access token:
+
+1. Create a granular token with read/write access to `provisionless` (and 2FA bypass for CI), then
+   store it:
+
+   ```bash
+   gh secret set NPM_TOKEN --repo davematias/provisionless
+   ```
+
+2. Run the workflow for the existing release:
+
+   ```bash
+   gh workflow run release-artifacts.yml --ref main -f tag=provisionless-v0.1.0
+   ```
+
+3. Verify the published package:
+
+   ```bash
+   npm view provisionless version
+   npm install -g provisionless@0.1.0
+   provisionless --version
+   ```
+
+Once the package exists, configure a trusted publisher at npmjs.com → `provisionless` → Settings →
+Trusted publishing → GitHub Actions with user `davematias`, repository `provisionless`, workflow
+`release-artifacts.yml`, and the `npm publish` action allowed. Then delete the `NPM_TOKEN` secret;
+the workflow falls back to OIDC and still generates provenance. Restricting the package to trusted
+publishers only is recommended once the switch works.
+
+### Retrying a publish
+
+`workflow_dispatch` with a release tag rebuilds the artifacts and retries the npm publish. It builds
+from the ref it runs on (pass `--ref main`), so it can bootstrap a tag that predates packaging
+changes; the package version on that ref must still match the tag. It fails loudly when the tag,
+package version, release assets, or npm version do not match.
+
 ## Verifying a release
 
 - `gh run list --workflow "Release Please"` shows the workflow runs.
@@ -132,5 +195,7 @@ directory is the project root and `.provisionless` is written there.
 - `gh run list --workflow "Release artifacts"` shows the artifact job for the CLI release.
 - `gh release view provisionless-vX.Y.Z` lists the admin archive, API archive, and checksum file.
 - `sha256sum -c provisionless-vX.Y.Z-SHA256SUMS` succeeds in a directory with the two archives.
+- `npm view provisionless version` reports the released CLI version.
+- `npm install -g provisionless@X.Y.Z` then `provisionless --version` reports the released version.
 - Running the released CLI outside a checkout (`npx provisionless@X.Y.Z deploy --dry-run`) reports the
   artifacts being downloaded and verified on the first run and reused on the next.

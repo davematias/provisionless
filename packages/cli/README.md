@@ -2,6 +2,16 @@
 
 Deploy the Provisionless API and admin website to AWS with a single command.
 
+## Install
+
+```bash
+npm install -g provisionless
+provisionless --version
+```
+
+The package is a single bundled entry point and includes everything it needs; deploy artifacts are
+downloaded and cached separately for each release.
+
 ## Usage
 
 Deploy without installing anything globally:
