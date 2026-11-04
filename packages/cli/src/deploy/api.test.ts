@@ -12,6 +12,7 @@ import {
   GetIntegrationsCommand,
   GetRoutesCommand,
   GetStagesCommand,
+  TagResourceCommand as ApiGatewayTagResourceCommand,
   UpdateDomainNameCommand,
 } from "@aws-sdk/client-apigatewayv2";
 import {
@@ -22,11 +23,13 @@ import { GetFunctionCommand, UpdateFunctionConfigurationCommand } from "@aws-sdk
 import {
   CreateTableCommand,
   DescribeTableCommand,
+  TagResourceCommand as DynamoDbTagResourceCommand,
   UpdateTimeToLiveCommand,
 } from "@aws-sdk/client-dynamodb";
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
+import { deploymentTagList, deploymentTags } from "../aws/tags.ts";
 import {
   apiEnv,
   configureApiAuth,
@@ -79,6 +82,14 @@ it("creates an HTTP API, integration, default route, and stage", async () => {
   expect(commands.some((command) => command instanceof CreateIntegrationCommand)).toBe(true);
   expect(commands.some((command) => command instanceof CreateRouteCommand)).toBe(true);
   expect(commands.some((command) => command instanceof CreateStageCommand)).toBe(true);
+  const api = commands.find((command) => command instanceof CreateApiCommand) as
+    | CreateApiCommand
+    | undefined;
+  expect(api?.input.Tags).toEqual(deploymentTags("provisionless"));
+  const stage = commands.find((command) => command instanceof CreateStageCommand) as
+    | CreateStageCommand
+    | undefined;
+  expect(stage?.input.Tags).toEqual(deploymentTags("provisionless"));
 });
 
 it("reuses an existing HTTP API instead of creating another", async () => {
@@ -101,11 +112,23 @@ it("reuses an existing HTTP API instead of creating another", async () => {
   expect(commands.some((command) => command instanceof CreateIntegrationCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateRouteCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateStageCommand)).toBe(false);
+  const tags = commands.filter(
+    (command): command is ApiGatewayTagResourceCommand =>
+      command instanceof ApiGatewayTagResourceCommand,
+  );
+  expect(tags.map((command) => command.input.ResourceArn)).toEqual([
+    "arn:aws:apigateway:us-east-1::/apis/existing",
+    "arn:aws:apigateway:us-east-1::/apis/existing/stages/$default",
+  ]);
+  for (const tag of tags) {
+    expect(tag.input.Tags).toEqual(deploymentTags("provisionless"));
+  }
 });
 
 interface TableInput {
   KeySchema?: { AttributeName?: string; KeyType?: string }[];
   GlobalSecondaryIndexes?: { IndexName?: string }[];
+  Tags?: unknown;
 }
 
 function createDynamoContext(send: (command: unknown) => Promise<unknown>): DeployContext {
@@ -145,11 +168,14 @@ it("creates the users table with the username key and id index", async () => {
     | undefined;
   expect(create?.input.KeySchema).toEqual([{ AttributeName: "username", KeyType: "HASH" }]);
   expect(create?.input.GlobalSecondaryIndexes?.[0]?.IndexName).toBe("id-index");
+  expect(create?.input.Tags).toEqual(deploymentTagList("provisionless"));
 });
 
-it("reuses an existing users table", async () => {
+it("reuses an existing users table and tags it", async () => {
+  const commands: unknown[] = [];
   let created = false;
   const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
     if (command instanceof CreateTableCommand) {
       created = true;
     }
@@ -160,6 +186,13 @@ it("reuses an existing users table", async () => {
 
   expect(tableName).toBe("provisionless-users");
   expect(created).toBe(false);
+  const tag = commands.find((command) => command instanceof DynamoDbTagResourceCommand) as
+    | DynamoDbTagResourceCommand
+    | undefined;
+  expect(tag?.input).toEqual({
+    ResourceArn: "arn:aws:dynamodb:us-east-1:111122223333:table/provisionless-users",
+    Tags: deploymentTagList("provisionless"),
+  });
 });
 
 it("creates the reset tokens table with a tokenHash key and expiry TTL", async () => {
@@ -186,6 +219,7 @@ it("creates the reset tokens table with a tokenHash key and expiry TTL", async (
     | { input: TableInput }
     | undefined;
   expect(create?.input.KeySchema).toEqual([{ AttributeName: "tokenHash", KeyType: "HASH" }]);
+  expect(create?.input.Tags).toEqual(deploymentTagList("provisionless"));
   const ttl = commands.find((command) => command instanceof UpdateTimeToLiveCommand) as
     | {
         input: {
@@ -200,9 +234,11 @@ it("creates the reset tokens table with a tokenHash key and expiry TTL", async (
   expect(commands.at(-1)).toBeInstanceOf(UpdateTimeToLiveCommand);
 });
 
-it("reuses an existing reset tokens table", async () => {
+it("reuses an existing reset tokens table and tags it", async () => {
+  const commands: unknown[] = [];
   let created = false;
   const ctx = createDynamoContext(async (command) => {
+    commands.push(command);
     if (command instanceof CreateTableCommand) {
       created = true;
     }
@@ -213,6 +249,7 @@ it("reuses an existing reset tokens table", async () => {
 
   expect(tableName).toBe("provisionless-reset-tokens");
   expect(created).toBe(false);
+  expect(commands.some((command) => command instanceof DynamoDbTagResourceCommand)).toBe(true);
 });
 
 it("creates the content types table with a slug key", async () => {
@@ -239,6 +276,7 @@ it("creates the content types table with a slug key", async () => {
     | { input: TableInput }
     | undefined;
   expect(create?.input.KeySchema).toEqual([{ AttributeName: "slug", KeyType: "HASH" }]);
+  expect(create?.input.Tags).toEqual(deploymentTagList("provisionless"));
 });
 
 it("creates the content entries table with type and id keys", async () => {
@@ -268,6 +306,7 @@ it("creates the content entries table with type and id keys", async () => {
     { AttributeName: "type", KeyType: "HASH" },
     { AttributeName: "id", KeyType: "RANGE" },
   ]);
+  expect(create?.input.Tags).toEqual(deploymentTagList("provisionless"));
 });
 
 const CERT_ARN = "arn:aws:acm:us-east-1:111122223333:certificate/api";
@@ -338,10 +377,17 @@ it("creates a regional custom domain, maps the default stage, and returns the cu
 
   expect(url).toBe("https://api.example.com");
   const create = commands.find((command) => command instanceof CreateDomainNameCommand) as
-    | { input: { DomainName?: string; DomainNameConfigurations?: { CertificateArn?: string }[] } }
+    | {
+        input: {
+          DomainName?: string;
+          DomainNameConfigurations?: { CertificateArn?: string }[];
+          Tags?: unknown;
+        };
+      }
     | undefined;
   expect(create?.input.DomainName).toBe("api.example.com");
   expect(create?.input.DomainNameConfigurations?.[0]?.CertificateArn).toBe(CERT_ARN);
+  expect(create?.input.Tags).toEqual(deploymentTags("provisionless"));
   const mapping = commands.find((command) => command instanceof CreateApiMappingCommand) as
     | { input: { ApiId?: string; Stage?: string } }
     | undefined;
@@ -448,6 +494,13 @@ it("reuses an existing custom domain and mapping on re-deploy", async () => {
   expect(commands.some((command) => command instanceof CreateDomainNameCommand)).toBe(false);
   expect(commands.some((command) => command instanceof UpdateDomainNameCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateApiMappingCommand)).toBe(false);
+  const tag = commands.find((command) => command instanceof ApiGatewayTagResourceCommand) as
+    | ApiGatewayTagResourceCommand
+    | undefined;
+  expect(tag?.input).toEqual({
+    ResourceArn: "arn:aws:apigateway:us-east-1::/domainnames/api.example.com",
+    Tags: deploymentTags("provisionless"),
+  });
 });
 
 it("updates the certificate when the existing custom domain uses a different ARN", async () => {
@@ -481,6 +534,7 @@ it("updates the certificate when the existing custom domain uses a different ARN
   expect(url).toBe("https://api.example.com");
   expect(commands.some((command) => command instanceof UpdateDomainNameCommand)).toBe(true);
   expect(commands.some((command) => command instanceof CreateDomainNameCommand)).toBe(false);
+  expect(commands.some((command) => command instanceof ApiGatewayTagResourceCommand)).toBe(true);
 });
 
 it("returns the execute-api URL (undefined domain) when the certificate is pending", async () => {

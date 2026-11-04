@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  AddTagsToCertificateCommand,
   DescribeCertificateCommand,
   ListCertificatesCommand,
   RequestCertificateCommand,
@@ -14,6 +15,7 @@ import {
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
+import { deploymentTagList } from "../aws/tags.ts";
 import { loadConfig, saveConfig } from "../config/config.ts";
 import { ensureCertificates } from "./certificates.ts";
 import type { DeployContext } from "./context.ts";
@@ -105,6 +107,20 @@ it("reuses saved certificate ARNs without requesting new certificates", async ()
   });
   expect(acmCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
   expect(adminCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(false);
+  const apiTag = acmCommands.find((command) => command instanceof AddTagsToCertificateCommand) as
+    | AddTagsToCertificateCommand
+    | undefined;
+  expect(apiTag?.input).toEqual({
+    CertificateArn: "arn:api",
+    Tags: deploymentTagList("demo"),
+  });
+  const adminTag = adminCommands.find(
+    (command) => command instanceof AddTagsToCertificateCommand,
+  ) as AddTagsToCertificateCommand | undefined;
+  expect(adminTag?.input).toEqual({
+    CertificateArn: "arn:admin",
+    Tags: deploymentTagList("demo"),
+  });
   expect(route53Commands).toEqual([]);
 });
 
@@ -191,7 +207,10 @@ it("requests a certificate and creates validation records in the hosted zone", a
   const result = await ensureCertificates(ctx, true);
 
   expect(result.apiCertificateArn).toBe("arn:new");
-  expect(acmCommands.some((command) => command instanceof RequestCertificateCommand)).toBe(true);
+  const request = acmCommands.find((command) => command instanceof RequestCertificateCommand) as
+    | RequestCertificateCommand
+    | undefined;
+  expect(request?.input.Tags).toEqual(deploymentTagList("demo"));
   const change = route53Commands.find(
     (command) => command instanceof ChangeResourceRecordSetsCommand,
   ) as { input: { HostedZoneId?: string; ChangeBatch?: { Changes?: unknown[] } } } | undefined;

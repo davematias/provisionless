@@ -1,7 +1,12 @@
-import { CreateEmailIdentityCommand, GetEmailIdentityCommand } from "@aws-sdk/client-sesv2";
+import {
+  CreateEmailIdentityCommand,
+  GetEmailIdentityCommand,
+  TagResourceCommand as SesTagResourceCommand,
+} from "@aws-sdk/client-sesv2";
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
+import { deploymentTagList } from "../aws/tags.ts";
 import type { DeployContext } from "./context.ts";
 import { ensureEmailIdentity } from "./email.ts";
 
@@ -40,7 +45,10 @@ it("creates the SES identity when it does not exist and asks for verification", 
   const result = await ensureEmailIdentity(ctx, "no-reply@example.com");
 
   expect(result).toEqual({ identity: "no-reply@example.com", verified: false });
-  expect(commands.some((command) => command instanceof CreateEmailIdentityCommand)).toBe(true);
+  const create = commands.find((command) => command instanceof CreateEmailIdentityCommand) as
+    | CreateEmailIdentityCommand
+    | undefined;
+  expect(create?.input.Tags).toEqual(deploymentTagList("provisionless"));
   expect(logs.some((message) => message.includes("SES sent a verification email"))).toBe(true);
 });
 
@@ -55,6 +63,13 @@ it("reuses an existing verified identity", async () => {
 
   expect(result.verified).toBe(true);
   expect(commands.some((command) => command instanceof CreateEmailIdentityCommand)).toBe(false);
+  const tag = commands.find((command) => command instanceof SesTagResourceCommand) as
+    | SesTagResourceCommand
+    | undefined;
+  expect(tag?.input).toEqual({
+    ResourceArn: "arn:aws:ses:us-east-1:111122223333:identity/no-reply@example.com",
+    Tags: deploymentTagList("provisionless"),
+  });
   expect(logs.some((message) => message.includes("reusing verified SES email identity"))).toBe(
     true,
   );

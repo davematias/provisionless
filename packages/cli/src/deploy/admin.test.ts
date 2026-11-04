@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CreateDistributionCommand,
+  CreateDistributionWithTagsCommand,
   CreateFunctionCommand,
   CreateOriginAccessControlCommand,
   DescribeFunctionCommand,
@@ -11,13 +11,27 @@ import {
   ListDistributionsCommand,
   ListOriginAccessControlsCommand,
   PublishFunctionCommand,
+  TagResourceCommand as CloudFrontTagResourceCommand,
   UpdateDistributionCommand,
   UpdateFunctionCommand,
 } from "@aws-sdk/client-cloudfront";
-import { GetFunctionCommand, GetFunctionUrlConfigCommand } from "@aws-sdk/client-lambda";
+import {
+  GetFunctionCommand,
+  GetFunctionUrlConfigCommand,
+  TagResourceCommand as LambdaTagResourceCommand,
+} from "@aws-sdk/client-lambda";
 import { GetRoleCommand } from "@aws-sdk/client-iam";
-import { DescribeTableCommand } from "@aws-sdk/client-dynamodb";
-import { GetQueueAttributesCommand, GetQueueUrlCommand } from "@aws-sdk/client-sqs";
+import {
+  CreateTableCommand,
+  DescribeTableCommand,
+  TagResourceCommand as DynamoDbTagResourceCommand,
+} from "@aws-sdk/client-dynamodb";
+import {
+  CreateQueueCommand,
+  GetQueueAttributesCommand,
+  GetQueueUrlCommand,
+  TagQueueCommand,
+} from "@aws-sdk/client-sqs";
 import {
   ChangeResourceRecordSetsCommand,
   ListHostedZonesByNameCommand,
@@ -25,12 +39,15 @@ import {
 import { expect, it } from "vitest";
 
 import type { AwsClients } from "../aws/clients.ts";
+import { cloudFrontTagSet, deploymentTagList, deploymentTags } from "../aws/tags.ts";
 import {
   buildDistributionConfig,
   configureAdminDns,
   deployAdmin,
   ensureRedirectFunction,
   ensureRevalidationEventSource,
+  ensureRevalidationQueue,
+  ensureTagCacheTable,
   redirectFunctionCode,
   type AdminDomainConfig,
   type OpenNextOutput,
@@ -251,6 +268,13 @@ it("updates and republishes when the redirect target changes", async () => {
     | { input: { IfMatch?: string } }
     | undefined;
   expect(publish?.input.IfMatch).toBe("E1");
+  const tag = commands.find((command) => command instanceof CloudFrontTagResourceCommand) as
+    | CloudFrontTagResourceCommand
+    | undefined;
+  expect(tag?.input).toEqual({
+    Resource: "arn:aws:cloudfront::111122223333:function/demo-admin-redirect",
+    Tags: cloudFrontTagSet("demo"),
+  });
 });
 
 it("does not touch AWS for the redirect function during a dry run", async () => {
@@ -397,7 +421,7 @@ function stubAws(probes: { dev: number; live: number; oac: number }) {
       return { OriginAccessControl: { Id: `oac${probes.oac}` } };
     }
     if (command instanceof ListDistributionsCommand) return { DistributionList: { Items: [] } };
-    if (command instanceof CreateDistributionCommand) {
+    if (command instanceof CreateDistributionWithTagsCommand) {
       return { Distribution: { Id: "DIST1", DomainName: "abc123.cloudfront.net" } };
     }
     if (command instanceof DescribeFunctionCommand) {
@@ -439,9 +463,14 @@ it("creates the distribution with aliases, certificate, and redirect in a full r
     | undefined;
   expect(create?.input.Name).toBe("demo-admin-redirect");
   const distribution = commands.find(
-    (command) => command instanceof CreateDistributionCommand,
-  ) as unknown as { input: { DistributionConfig?: DomainConfigInput } };
-  const distConfig = distribution.input.DistributionConfig as DomainConfigInput;
+    (command) => command instanceof CreateDistributionWithTagsCommand,
+  ) as unknown as {
+    input: {
+      DistributionConfigWithTags?: { DistributionConfig?: DomainConfigInput; Tags?: unknown };
+    };
+  };
+  const distConfig = distribution.input.DistributionConfigWithTags
+    ?.DistributionConfig as DomainConfigInput;
   expect(distConfig.Aliases).toEqual({
     Quantity: 2,
     Items: ["example.com", "www.example.com"],
@@ -452,6 +481,28 @@ it("creates the distribution with aliases, certificate, and redirect in a full r
     MinimumProtocolVersion: "TLSv1.2_2021",
   });
   expect(distConfig.DefaultCacheBehavior?.FunctionAssociations?.Quantity).toBe(1);
+  expect(distribution.input.DistributionConfigWithTags?.Tags).toEqual(cloudFrontTagSet("demo"));
+
+  const tagCache = commands.find(
+    (command) =>
+      command instanceof DynamoDbTagResourceCommand &&
+      command.input.ResourceArn?.includes(":table/demo-admin-tag-cache"),
+  ) as DynamoDbTagResourceCommand | undefined;
+  expect(tagCache?.input.Tags).toEqual(deploymentTagList("demo"));
+
+  const queue = commands.find((command) => command instanceof TagQueueCommand) as
+    | TagQueueCommand
+    | undefined;
+  expect(queue?.input.Tags).toEqual(deploymentTags("demo"));
+
+  const lambdaTags = commands.filter(
+    (command): command is LambdaTagResourceCommand => command instanceof LambdaTagResourceCommand,
+  );
+  expect(lambdaTags).toHaveLength(3);
+  for (const tag of lambdaTags) {
+    expect(tag.input.Tags).toEqual(deploymentTags("demo"));
+  }
+
   const ctxLogs = logs;
   expect(
     ctxLogs.some(
@@ -521,7 +572,9 @@ it("updates an existing distribution with the domain configuration on re-deploy"
   const result = await deployAdmin(ctx, "https://api.example.test");
 
   expect(result.url).toBe("https://example.com");
-  expect(commands.some((command) => command instanceof CreateDistributionCommand)).toBe(false);
+  expect(commands.some((command) => command instanceof CreateDistributionWithTagsCommand)).toBe(
+    false,
+  );
   const update = commands.find(
     (command) => command instanceof UpdateDistributionCommand,
   ) as unknown as {
@@ -536,6 +589,15 @@ it("updates an existing distribution with the domain configuration on re-deploy"
     ACMCertificateArn: "arn:cert",
     SSLSupportMethod: "sni-only",
     MinimumProtocolVersion: "TLSv1.2_2021",
+  });
+  const tag = commands.find(
+    (command) =>
+      command instanceof CloudFrontTagResourceCommand &&
+      command.input.Resource?.includes(":distribution/DIST1"),
+  ) as CloudFrontTagResourceCommand | undefined;
+  expect(tag?.input).toEqual({
+    Resource: "arn:aws:cloudfront::111122223333:distribution/DIST1",
+    Tags: cloudFrontTagSet("demo"),
   });
   expect(
     update.input.DistributionConfig?.DefaultCacheBehavior?.FunctionAssociations?.Quantity,
@@ -581,11 +643,18 @@ it("deploys with the default certificate while the admin certificate is pending"
   expect(result.url).toBe("https://abc123.cloudfront.net");
   const ctxLogs = logs;
   expect(ctxLogs.some((message) => message.includes("not attached yet"))).toBe(true);
-  expect(commands.some((command) => command instanceof CreateDistributionCommand)).toBe(true);
+  expect(commands.some((command) => command instanceof CreateDistributionWithTagsCommand)).toBe(
+    true,
+  );
   const distribution = commands.find(
-    (command) => command instanceof CreateDistributionCommand,
-  ) as unknown as { input: { DistributionConfig?: DomainConfigInput } };
-  const distConfig = distribution.input.DistributionConfig as DomainConfigInput;
+    (command) => command instanceof CreateDistributionWithTagsCommand,
+  ) as unknown as {
+    input: {
+      DistributionConfigWithTags?: { DistributionConfig?: DomainConfigInput; Tags?: unknown };
+    };
+  };
+  const distConfig = distribution.input.DistributionConfigWithTags
+    ?.DistributionConfig as DomainConfigInput;
   expect(distConfig.Aliases).toEqual({ Quantity: 0 });
   expect(distConfig.ViewerCertificate).toEqual({ CloudFrontDefaultCertificate: true });
   expect(
@@ -628,7 +697,7 @@ it("wires the admin domain through a dry-run deployment", async () => {
         command instanceof UpdateFunctionCommand ||
         command instanceof PublishFunctionCommand ||
         command instanceof ChangeResourceRecordSetsCommand ||
-        command instanceof CreateDistributionCommand,
+        command instanceof CreateDistributionWithTagsCommand,
     ),
   ).toBe(false);
 });
@@ -746,4 +815,78 @@ it("keeps the default CloudFront certificate on a re-deploy without a domain", a
     (command) => command instanceof UpdateDistributionCommand,
   ) as unknown as { input: { DistributionConfig?: DomainConfigInput } };
   expect(update.input.DistributionConfig?.ViewerCertificate).toEqual(existingCertificate);
+});
+
+it("creates the admin tag cache table with deployment tags", async () => {
+  const commands: unknown[] = [];
+  let probes = 0;
+  const ctx = {
+    region: "eu-west-1",
+    accountId: "111122223333",
+    dryRun: false,
+    repoRoot: ".",
+    appPrefix: "demo",
+    mediaBucket: "demo-media",
+    log: () => undefined,
+    clients: {
+      dynamodb: {
+        send: async (command: unknown) => {
+          commands.push(command);
+          if (command instanceof DescribeTableCommand) {
+            probes += 1;
+            if (probes === 1) {
+              const error = new Error("missing");
+              error.name = "ResourceNotFoundException";
+              throw error;
+            }
+            return { Table: { TableStatus: "ACTIVE" } };
+          }
+          return {};
+        },
+      },
+    } as unknown as AwsClients,
+  } as DeployContext;
+
+  await ensureTagCacheTable(ctx, "demo-admin-tag-cache");
+
+  const create = commands.find((command) => command instanceof CreateTableCommand) as
+    | CreateTableCommand
+    | undefined;
+  expect(create?.input.Tags).toEqual(deploymentTagList("demo"));
+});
+
+it("creates the revalidation queue with deployment tags", async () => {
+  const commands: unknown[] = [];
+  const ctx = {
+    region: "eu-west-1",
+    accountId: "111122223333",
+    dryRun: false,
+    repoRoot: ".",
+    appPrefix: "demo",
+    mediaBucket: "demo-media",
+    log: () => undefined,
+    clients: {
+      sqs: {
+        send: async (command: unknown) => {
+          commands.push(command);
+          if (command instanceof GetQueueUrlCommand) {
+            const error = new Error("missing");
+            error.name = "QueueDoesNotExist";
+            throw error;
+          }
+          if (command instanceof CreateQueueCommand) {
+            return { QueueUrl: "https://sqs.eu-west-1.amazonaws.com/111122223333/demo.fifo" };
+          }
+          return {};
+        },
+      },
+    } as unknown as AwsClients,
+  } as DeployContext;
+
+  await ensureRevalidationQueue(ctx, "demo-admin-revalidation.fifo");
+
+  const create = commands.find((command) => command instanceof CreateQueueCommand) as
+    | CreateQueueCommand
+    | undefined;
+  expect(create?.input.tags).toEqual(deploymentTags("demo"));
 });

@@ -33,6 +33,13 @@ import {
 } from "../aws/lambda.ts";
 import { apiNames } from "../aws/names.ts";
 import { resolveHostedZoneId, upsertAliasRecords, type AliasTarget } from "../aws/route53.ts";
+import {
+  apiGatewayArn,
+  deploymentTagList,
+  deploymentTags,
+  tagApiGatewayResource,
+  tagDynamoTable,
+} from "../aws/tags.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { cliVersion } from "../version.ts";
 import type { DeployContext } from "./context.ts";
@@ -115,6 +122,7 @@ export async function ensureApiDomain(
       new CreateDomainNameCommand({
         DomainName: domain,
         DomainNameConfigurations: [{ CertificateArn: ctx.apiCertificateArn }],
+        Tags: deploymentTags(ctx.appPrefix),
       }),
     );
   } else if (found.DomainNameConfigurations?.[0]?.CertificateArn !== ctx.apiCertificateArn) {
@@ -128,6 +136,7 @@ export async function ensureApiDomain(
   } else {
     ctx.log(`reusing API Gateway custom domain ${domain}`);
   }
+  await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/domainnames/${domain}`));
 
   const configuration = await waitForDomainAvailable(ctx, domain);
   const target: AliasTarget = {
@@ -163,13 +172,18 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
     }
     ctx.log(`creating API Gateway HTTP API ${names.api}`);
     const created = await ctx.clients.apiGateway.send(
-      new CreateApiCommand({ Name: names.api, ProtocolType: "HTTP" }),
+      new CreateApiCommand({
+        Name: names.api,
+        ProtocolType: "HTTP",
+        Tags: deploymentTags(ctx.appPrefix),
+      }),
     );
     apiId = created.ApiId;
   }
   if (!apiId) {
     throw new Error("API Gateway did not return an API ID");
   }
+  await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/apis/${apiId}`));
 
   const integrations = await ctx.clients.apiGateway.send(
     new GetIntegrationsCommand({ ApiId: apiId }),
@@ -208,8 +222,15 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
   const stages = await ctx.clients.apiGateway.send(new GetStagesCommand({ ApiId: apiId }));
   if (!stages.Items?.some((stage) => stage.StageName === "$default")) {
     await ctx.clients.apiGateway.send(
-      new CreateStageCommand({ ApiId: apiId, StageName: "$default", AutoDeploy: true }),
+      new CreateStageCommand({
+        ApiId: apiId,
+        StageName: "$default",
+        AutoDeploy: true,
+        Tags: deploymentTags(ctx.appPrefix),
+      }),
     );
+  } else {
+    await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/apis/${apiId}/stages/$default`));
   }
 
   await addInvokePermission(
@@ -233,6 +254,7 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
       new DescribeTableCommand({ TableName: usersTable }),
     );
     if (existing.Table?.TableStatus === "ACTIVE") {
+      await tagDynamoTable(ctx, usersTable);
       return usersTable;
     }
   } catch (error) {
@@ -263,6 +285,7 @@ export async function ensureUsersTable(ctx: DeployContext): Promise<string> {
         },
       ],
       BillingMode: "PAY_PER_REQUEST",
+      Tags: deploymentTagList(ctx.appPrefix),
     }),
   );
 
@@ -286,6 +309,7 @@ export async function ensureResetTokensTable(ctx: DeployContext): Promise<string
       new DescribeTableCommand({ TableName: resetTokensTable }),
     );
     if (existing.Table?.TableStatus === "ACTIVE") {
+      await tagDynamoTable(ctx, resetTokensTable);
       return resetTokensTable;
     }
   } catch (error) {
@@ -306,6 +330,7 @@ export async function ensureResetTokensTable(ctx: DeployContext): Promise<string
       AttributeDefinitions: [{ AttributeName: "tokenHash", AttributeType: "S" }],
       KeySchema: [{ AttributeName: "tokenHash", KeyType: "HASH" }],
       BillingMode: "PAY_PER_REQUEST",
+      Tags: deploymentTagList(ctx.appPrefix),
     }),
   );
 
@@ -337,6 +362,7 @@ async function ensureApiTable(
       new DescribeTableCommand({ TableName: tableName }),
     );
     if (existing.Table?.TableStatus === "ACTIVE") {
+      await tagDynamoTable(ctx, tableName);
       return tableName;
     }
   } catch (error) {
@@ -357,6 +383,7 @@ async function ensureApiTable(
       AttributeDefinitions: input.AttributeDefinitions,
       KeySchema: input.KeySchema,
       BillingMode: "PAY_PER_REQUEST",
+      Tags: deploymentTagList(ctx.appPrefix),
     }),
   );
 

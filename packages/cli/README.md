@@ -172,6 +172,13 @@ them, so `npx provisionless deploy` works from an empty directory.
 See [docs/releases.md](../../docs/releases.md#deploy-artifacts) for the asset names, checksum
 metadata, cache layout, and release workflow.
 
+### Resource tags
+
+Every taggable resource `deploy` creates or adopts is tagged with `provisionless:managed=true` and
+`provisionless:app=<prefix>`. The tags let AWS tooling and future CLI commands find a deployment
+without the local `.provisionless` file. See [docs/deployments.md](../../docs/deployments.md) for the
+schema, taggable resources, non-taggable exceptions, and required tagging permissions.
+
 ## Local development
 
 Run the CLI from source without building or publishing:

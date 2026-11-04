@@ -14,6 +14,7 @@ import {
 
 import type { DeployContext } from "../deploy/context.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
+import { deploymentTagList, deploymentTags, tagLambdaFunction, tagRole } from "./tags.ts";
 
 export const LAMBDA_RUNTIME = "nodejs22.x";
 const BASIC_EXECUTION_POLICY = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole";
@@ -33,6 +34,7 @@ export async function ensureLambdaRole(ctx: DeployContext, roleName: string): Pr
   try {
     const existing = await ctx.clients.iam.send(new GetRoleCommand({ RoleName: roleName }));
     if (existing.Role?.Arn) {
+      await tagRole(ctx, roleName);
       return existing.Role.Arn;
     }
   } catch (error) {
@@ -48,7 +50,11 @@ export async function ensureLambdaRole(ctx: DeployContext, roleName: string): Pr
 
   ctx.log(`creating IAM role ${roleName}`);
   const created = await ctx.clients.iam.send(
-    new CreateRoleCommand({ RoleName: roleName, AssumeRolePolicyDocument: ASSUME_ROLE_POLICY }),
+    new CreateRoleCommand({
+      RoleName: roleName,
+      AssumeRolePolicyDocument: ASSUME_ROLE_POLICY,
+      Tags: deploymentTagList(ctx.appPrefix),
+    }),
   );
   await ctx.clients.iam.send(
     new AttachRolePolicyCommand({ RoleName: roleName, PolicyArn: BASIC_EXECUTION_POLICY }),
@@ -141,6 +147,7 @@ export async function deployFunction(ctx: DeployContext, spec: FunctionSpec): Pr
             MemorySize: spec.memorySize ?? 1024,
             Description: spec.description,
             Environment: environment,
+            Tags: deploymentTags(ctx.appPrefix),
           }),
         );
         break;
@@ -172,6 +179,9 @@ export async function deployFunction(ctx: DeployContext, spec: FunctionSpec): Pr
   }
 
   await waitForFunction(ctx, spec.name);
+  if (exists) {
+    await tagLambdaFunction(ctx, spec.name);
+  }
   return arn;
 }
 

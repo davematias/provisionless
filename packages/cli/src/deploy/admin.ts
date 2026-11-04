@@ -12,7 +12,7 @@ import type {
   OriginAccessControlSummary,
 } from "@aws-sdk/client-cloudfront";
 import {
-  CreateDistributionCommand,
+  CreateDistributionWithTagsCommand,
   CreateFunctionCommand,
   CreateOriginAccessControlCommand,
   DescribeFunctionCommand,
@@ -53,6 +53,15 @@ import {
   upsertAliasRecords,
 } from "../aws/route53.ts";
 import { ensureBucket } from "../aws/s3.ts";
+import {
+  cloudFrontArn,
+  cloudFrontTagSet,
+  deploymentTagList,
+  deploymentTags,
+  tagCloudFrontResource,
+  tagDynamoTable,
+  tagQueue,
+} from "../aws/tags.ts";
 import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
 import { cliVersion } from "../version.ts";
@@ -108,12 +117,13 @@ function bundleDir(openNextDir: string, bundle: string): string {
   return join(openNextDir, bundle.replace(".open-next/", ""));
 }
 
-async function ensureTagCacheTable(ctx: DeployContext, tableName: string): Promise<void> {
+export async function ensureTagCacheTable(ctx: DeployContext, tableName: string): Promise<void> {
   try {
     const existing = await ctx.clients.dynamodb.send(
       new DescribeTableCommand({ TableName: tableName }),
     );
     if (existing.Table?.TableStatus === "ACTIVE") {
+      await tagDynamoTable(ctx, tableName);
       return;
     }
   } catch (error) {
@@ -151,6 +161,7 @@ async function ensureTagCacheTable(ctx: DeployContext, tableName: string): Promi
         },
       ],
       BillingMode: "PAY_PER_REQUEST",
+      Tags: deploymentTagList(ctx.appPrefix),
     }),
   );
 
@@ -166,10 +177,14 @@ async function ensureTagCacheTable(ctx: DeployContext, tableName: string): Promi
   throw new Error(`Timed out waiting for DynamoDB table ${tableName}`);
 }
 
-async function ensureRevalidationQueue(ctx: DeployContext, queueName: string): Promise<string> {
+export async function ensureRevalidationQueue(
+  ctx: DeployContext,
+  queueName: string,
+): Promise<string> {
   try {
     const existing = await ctx.clients.sqs.send(new GetQueueUrlCommand({ QueueName: queueName }));
     if (existing.QueueUrl) {
+      await tagQueue(ctx, existing.QueueUrl);
       return existing.QueueUrl;
     }
   } catch (error) {
@@ -191,6 +206,7 @@ async function ensureRevalidationQueue(ctx: DeployContext, queueName: string): P
     new CreateQueueCommand({
       QueueName: queueName,
       Attributes: { FifoQueue: "true", ContentBasedDeduplication: "true" },
+      tags: deploymentTags(ctx.appPrefix),
     }),
   );
   if (!created.QueueUrl) {
@@ -484,6 +500,7 @@ export async function ensureRedirectFunction(
     await waitForFunctionStage(ctx, name, "LIVE", "DEPLOYED");
   }
 
+  await tagCloudFrontResource(ctx, arn);
   return arn;
 }
 
@@ -856,20 +873,24 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
       );
       distributionDomain = updated.Distribution?.DomainName ?? distributionDomain;
     }
+    await tagCloudFrontResource(ctx, cloudFrontArn(ctx, `distribution/${existing.id}`));
   } else if (ctx.dryRun) {
     ctx.log("would create CloudFront distribution");
     distributionDomain = "<dry-run>.cloudfront.net";
   } else {
     ctx.log("creating CloudFront distribution");
     const created = await ctx.clients.cloudfront.send(
-      new CreateDistributionCommand({
-        DistributionConfig: buildDistributionConfig(
-          output,
-          origins,
-          `${ctx.appPrefix}-admin-${Date.now()}`,
-          distributionComment,
-          domainConfig,
-        ),
+      new CreateDistributionWithTagsCommand({
+        DistributionConfigWithTags: {
+          DistributionConfig: buildDistributionConfig(
+            output,
+            origins,
+            `${ctx.appPrefix}-admin-${Date.now()}`,
+            distributionComment,
+            domainConfig,
+          ),
+          Tags: cloudFrontTagSet(ctx.appPrefix),
+        },
       }),
     );
     distributionId = created.Distribution?.Id;
