@@ -1,4 +1,5 @@
 import {
+  AddTagsToCertificateCommand,
   DescribeCertificateCommand,
   ListCertificatesCommand,
   RequestCertificateCommand,
@@ -10,6 +11,7 @@ import {
 
 import { isAwsError, sleep } from "../util/aws.ts";
 import type { Logger } from "../util/log.ts";
+import type { AwsTag } from "./tags.ts";
 
 export interface DnsValidationRecord {
   name: string;
@@ -29,6 +31,8 @@ export interface EnsureCertificateOptions {
   existingArn?: string;
   dryRun: boolean;
   log: Logger;
+  /** Tags applied to a new certificate or added to a reused one. */
+  tags?: AwsTag[];
 }
 
 const REUSABLE_STATUSES: readonly CertificateStatus[] = ["ISSUED", "PENDING_VALIDATION"];
@@ -132,6 +136,14 @@ export async function ensureCertificate(
     (await findByDomain(client, domains));
   if (reusable) {
     options.log(`reusing ACM certificate for ${domains.join(", ")}`);
+    if (reusable.certificateArn && options.tags && options.tags.length > 0) {
+      await client.send(
+        new AddTagsToCertificateCommand({
+          CertificateArn: reusable.certificateArn,
+          Tags: options.tags,
+        }),
+      );
+    }
     return reusable;
   }
 
@@ -143,6 +155,7 @@ export async function ensureCertificate(
         ? { SubjectAlternativeNames: options.additionalDomains }
         : {}),
       ValidationMethod: "DNS",
+      ...(options.tags && options.tags.length > 0 ? { Tags: options.tags } : {}),
     }),
   );
   if (!requested.CertificateArn) {

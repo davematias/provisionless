@@ -3,10 +3,12 @@ import { CreateBucketCommand, HeadBucketCommand } from "@aws-sdk/client-s3";
 
 import type { DeployContext } from "../deploy/context.ts";
 import { isAwsError } from "../util/aws.ts";
+import { tagBucket } from "./tags.ts";
 
 export async function ensureBucket(ctx: DeployContext, bucket: string): Promise<void> {
   try {
     await ctx.clients.s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    await tagBucket(ctx, bucket);
     return;
   } catch (error) {
     const notFound =
@@ -33,4 +35,5 @@ export async function ensureBucket(ctx: DeployContext, bucket: string): Promise<
           : { LocationConstraint: ctx.region as BucketLocationConstraint },
     }),
   );
+  await tagBucket(ctx, bucket);
 }

@@ -1,6 +1,7 @@
 import { CreateEmailIdentityCommand, GetEmailIdentityCommand } from "@aws-sdk/client-sesv2";
 
 import { isAwsError } from "../util/aws.ts";
+import { deploymentTagList, tagEmailIdentity } from "../aws/tags.ts";
 import type { DeployContext } from "./context.ts";
 
 export interface EmailIdentity {
@@ -31,6 +32,7 @@ export async function ensureEmailIdentity(
         ? `reusing verified SES email identity ${identity}`
         : `SES email identity ${identity} is not verified yet; password reset emails will fail until it is verified`,
     );
+    await tagEmailIdentity(ctx, identity);
     return { identity, verified };
   } catch (error) {
     if (!isAwsError(error, "NotFoundException")) {
@@ -40,7 +42,10 @@ export async function ensureEmailIdentity(
 
   ctx.log(`creating SES email identity ${identity}`);
   const created = await ctx.clients.ses.send(
-    new CreateEmailIdentityCommand({ EmailIdentity: identity }),
+    new CreateEmailIdentityCommand({
+      EmailIdentity: identity,
+      Tags: deploymentTagList(ctx.appPrefix),
+    }),
   );
   const verified = created.VerifiedForSendingStatus === true;
   if (!verified) {

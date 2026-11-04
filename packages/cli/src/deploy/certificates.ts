@@ -8,6 +8,7 @@ import {
 } from "../aws/acm.ts";
 import { adminSiteNames } from "../aws/domains.ts";
 import { resolveHostedZoneId, upsertValidationRecords } from "../aws/route53.ts";
+import { deploymentTagList, type AwsTag } from "../aws/tags.ts";
 import { loadConfig, updateConfig, type ProvisionlessConfig } from "../config/config.ts";
 import type { Logger } from "../util/log.ts";
 import type { DeployContext } from "./context.ts";
@@ -29,6 +30,7 @@ interface EnsureDomainCertificateOptions {
   route53: Route53Client;
   dryRun: boolean;
   log: Logger;
+  tags: AwsTag[];
 }
 
 function printValidationInstructions(
@@ -59,6 +61,7 @@ async function ensureDomainCertificate(
     existingArn: options.existingArn,
     dryRun: options.dryRun,
     log: options.log,
+    tags: options.tags,
   });
 
   if (!ensured.certificateArn) {
@@ -117,6 +120,7 @@ export async function ensureCertificates(
       route53: ctx.clients.route53,
       dryRun: ctx.dryRun,
       log: ctx.log,
+      tags: deploymentTagList(ctx.appPrefix),
     });
     result.adminCertificateArn = admin.certificateArn;
     result.adminCertificateIssued = admin.issued;
@@ -132,6 +136,7 @@ export async function ensureCertificates(
       route53: ctx.clients.route53,
       dryRun: ctx.dryRun,
       log: ctx.log,
+      tags: deploymentTagList(ctx.appPrefix),
     });
     result.apiCertificateArn = api.certificateArn;
     result.apiCertificateIssued = api.issued;
