@@ -38,6 +38,37 @@ Options:
   non-interactively (prompted when omitted).
 - `--dry-run` — report what would be created or updated without changing AWS.
 
+### List deployments
+
+Discover every Provisionless deployment in the account, without a local `.provisionless` file:
+
+```bash
+provisionless list
+provisionless list --region eu-west-1
+provisionless list --region us-east-1,eu-west-1 --json
+```
+
+The command searches all enabled regions by default, or the comma-separated `--region` list, and
+reports the prefix, region, admin URL, API URL, and health. Health comes from AWS state: `healthy`
+when the CloudFront distribution is deployed and the API default stage exists, `deploying` while
+CloudFront is updating, and `degraded` otherwise. `--json` prints a machine-readable array.
+
+### Inspect a deployment
+
+```bash
+provisionless status --prefix acme
+provisionless status --prefix acme --region eu-west-1
+provisionless status --prefix acme --json
+provisionless status --prefix acme --no-check
+```
+
+`status` lists the tagged resources, URLs, and health for one deployment. By default it also probes
+the admin URL and the API `/openapi.json` with a short timeout and reports whether they respond;
+`--no-check` skips the probes. If the prefix exists in multiple regions, pass `--region`.
+
+Both commands are read-only. They need permission to read resource tags and the tagged services; see
+[docs/deployments.md](../../docs/deployments.md#discovering-deployments).
+
 ### Undeploy
 
 Remove everything a deployment created:

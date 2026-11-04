@@ -18,6 +18,8 @@ it("exposes deploy and undeploy as machine-readable help", () => {
   expect(json.note).toContain("CloudFormation");
   expect(names).toContain("deploy");
   expect(names).toContain("undeploy");
+  expect(names).toContain("list");
+  expect(names).toContain("status");
 
   const deploy = json.commands.find((command) => command.name === "deploy");
   expect(deploy?.examples.length).toBeGreaterThan(0);
