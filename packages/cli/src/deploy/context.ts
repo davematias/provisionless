@@ -10,7 +10,11 @@ export interface DeployContext {
   checkout?: boolean;
   appPrefix: string;
   mediaBucket: string;
+  /** API Gateway HTTP API ID, set once the API has been created or found. */
+  apiId?: string;
   emailFrom?: string;
+  /** Optional email address subscribed to the deployment's alarm topic. */
+  alarmEmail?: string;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
@@ -30,6 +34,7 @@ export interface DeployOptions {
   prefix?: string;
   mediaBucket?: string;
   emailFrom?: string;
+  alarmEmail?: string;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;

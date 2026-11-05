@@ -27,6 +27,9 @@ Options:
 - `--media-bucket <name>` — media bucket name (prompted when omitted); the app prefix is prepended.
 - `--email-from <address>` — verified SES sender address used for password reset emails; when omitted
   the API logs reset links instead of sending mail. Saved in `.provisionless`.
+- `--alarm-email <address>` — email address subscribed to the deployment's CloudWatch alarm topic;
+  when omitted the alarms are created without an email subscriber. Saved in `.provisionless`. SNS
+  sends a confirmation email that must be accepted before notifications arrive.
 - `--admin-domain <domain>` / `--api-domain <domain>` — custom domains for the admin site and API
   (prompted when omitted; leave blank to deploy without a custom domain).
 - `--hosted-zone <id-or-name>` — Route 53 hosted zone used to create DNS records automatically;
@@ -179,6 +182,31 @@ instead of being emailed, which keeps the flow usable in local development. User
 address for SES delivery; users created before email was required log a warning until one is set.
 Undeploy leaves SES identities in place because they can be shared with other applications.
 
+### Alarms and notifications
+
+Each deployment gets an SNS topic named `<prefix>-alarms` and CloudWatch alarms that publish to it:
+
+| Alarm                               | Fires when                                                  |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `<prefix>-api-5xx`                  | API Gateway returns at least one 5XX response in 5 minutes. |
+| `<prefix>-lambda-errors-<label>`    | A Lambda reports at least one error in 5 minutes.           |
+| `<prefix>-lambda-throttles-<label>` | A Lambda is throttled at least once in 5 minutes.           |
+| `<prefix>-revalidation-queue-age`   | The oldest revalidation message is at least 5 minutes old.  |
+| `<prefix>-log-ingestion`            | The deployment log groups ingest at least 1 GiB in one day. |
+
+`<label>` is `api`, `admin-server`, `admin-image`, or `admin-revalidation`. Pass
+`--alarm-email ops@example.com` to subscribe an address; AWS sends a confirmation email that must be
+accepted before notifications are delivered. Redeploying updates the alarms in place and does not
+duplicate the topic or subscription.
+
+Silence an alarm in the CloudWatch console or change its threshold there; a later deploy reapplies
+the documented defaults. To stop email notifications without removing the alarms, unsubscribe from
+the topic in SNS. `undeploy` deletes the deployment alarms and topic, including its subscriptions.
+
+Every alarm costs a small monthly charge, and the log-ingestion alarm is a guardrail rather than a
+budget. For cross-service spend protection, create an AWS Budget with an alert in `us-east-1` (Budgets
+is a global service); it covers services this CLI does not provision.
+
 `deploy` builds the API bundle and the admin website (with
 [OpenNext](https://opennext.js.org/aws)) when it runs from a source checkout; outside a checkout it
 downloads the prebuilt artifacts for its version instead. Either way it provisions:
@@ -188,10 +216,12 @@ downloads the prebuilt artifacts for its version instead. Either way it provisio
 - **Admin** — an S3 bucket (static assets and incremental cache), a DynamoDB tag cache, a
   FIFO SQS revalidation queue, three Lambda functions (SSR, image optimization, and
   revalidation), and a CloudFront distribution in front of the Lambda and S3 origins.
+- **Alarms** — an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors
+  and throttles, revalidation queue age, and daily log ingestion.
 
 It uses the standard AWS credential chain. The caller must be allowed to manage IAM, Lambda,
-API Gateway, S3, DynamoDB, SQS, and CloudFront. Running it again updates the existing
-resources in place.
+API Gateway, S3, DynamoDB, SQS, SNS, CloudWatch, and CloudFront. Running it again updates the
+existing resources in place.
 
 ### Deploy artifacts
 

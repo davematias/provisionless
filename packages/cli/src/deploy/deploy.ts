@@ -1,8 +1,10 @@
 import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
+import { ensureObservability } from "../aws/alarms.ts";
 import { createAwsClients } from "../aws/clients.ts";
-import { apiNames } from "../aws/names.ts";
+import { adminNames, apiNames } from "../aws/names.ts";
 import {
+  resolveAlarmEmail,
   resolveAppPrefix,
   resolveDomains,
   resolveEmailFrom,
@@ -71,6 +73,12 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       log,
       persist: !options.dryRun,
     });
+    const alarmEmail = resolveAlarmEmail({
+      repoRoot,
+      alarmEmail: options.alarmEmail,
+      log,
+      persist: !options.dryRun,
+    });
 
     const domains = await resolveDomains({
       repoRoot,
@@ -101,6 +109,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       appPrefix,
       mediaBucket,
       emailFrom,
+      alarmEmail,
       adminDomain: domains.adminDomain,
       apiDomain: domains.apiDomain,
       hostedZone: domains.hostedZone,
@@ -125,6 +134,19 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     const apiUrl = await deployApi(ctx, jwtSecret);
     const admin = await deployAdmin(ctx, apiUrl);
     await configureApiAuth(ctx, jwtSecret, admin.url);
+
+    const api = apiNames(appPrefix);
+    const adminResources = adminNames(appPrefix, accountId);
+    await ensureObservability(ctx, {
+      apiId: ctx.apiId,
+      functions: [
+        { label: "api", name: api.function },
+        { label: "admin-server", name: adminResources.serverFunction },
+        { label: "admin-image", name: adminResources.imageFunction },
+        { label: "admin-revalidation", name: adminResources.revalidationFunction },
+      ],
+      queueName: adminResources.revalidationQueue,
+    });
 
     log(`API URL:   ${apiUrl}`);
     log(`Admin URL: ${admin.url}`);

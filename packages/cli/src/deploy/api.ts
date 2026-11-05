@@ -168,6 +168,7 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
   if (!apiId) {
     if (ctx.dryRun) {
       ctx.log(`would create API Gateway HTTP API ${names.api}`);
+      ctx.apiId = "<api-id>";
       const domainUrl = await ensureApiDomain(ctx, "<api-id>");
       return domainUrl ?? `https://<api-id>.execute-api.${ctx.region}.amazonaws.com`;
     }
@@ -184,6 +185,7 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
   if (!apiId) {
     throw new Error("API Gateway did not return an API ID");
   }
+  ctx.apiId = apiId;
   await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/apis/${apiId}`));
 
   const integrations = await ctx.clients.apiGateway.send(
