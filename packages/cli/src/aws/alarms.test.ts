@@ -38,6 +38,7 @@ const TARGETS: ObservabilityTargets = {
     { label: "admin-revalidation", name: "demo-admin-revalidation" },
   ],
   queueName: "demo-admin-revalidation.fifo",
+  deadLetterQueueName: "demo-admin-revalidation-dlq.fifo",
 };
 
 function createContext(
@@ -90,6 +91,7 @@ it("builds prefix-scoped alarms for the API, Lambdas, queue, and log ingestion",
     "demo-lambda-errors-admin-revalidation",
     "demo-lambda-throttles-admin-revalidation",
     "demo-revalidation-queue-age",
+    "demo-revalidation-dlq-depth",
     "demo-log-ingestion",
   ]);
 
@@ -103,6 +105,13 @@ it("builds prefix-scoped alarms for the API, Lambdas, queue, and log ingestion",
   const queue = definitions.find((definition) => definition.name.endsWith("queue-age"));
   expect(queue?.dimensions).toEqual([{ Name: "QueueName", Value: TARGETS.queueName }]);
   expect(queue?.threshold).toBe(REVALIDATION_QUEUE_AGE_SECONDS);
+
+  const deadLetter = definitions.find((definition) => definition.name.endsWith("dlq-depth"));
+  expect(deadLetter?.metricName).toBe("ApproximateNumberOfMessagesVisible");
+  expect(deadLetter?.dimensions).toEqual([
+    { Name: "QueueName", Value: TARGETS.deadLetterQueueName },
+  ]);
+  expect(deadLetter?.threshold).toBe(1);
 
   const logs = definitions.find((definition) => definition.name.endsWith("log-ingestion"));
   expect(logs?.threshold).toBe(LOG_INGESTION_DAILY_BYTES);
@@ -212,7 +221,7 @@ it("puts every alarm with the topic action and deployment tags", async () => {
   const alarms = commands.filter(
     (command): command is PutMetricAlarmCommand => command instanceof PutMetricAlarmCommand,
   );
-  expect(alarms).toHaveLength(11);
+  expect(alarms).toHaveLength(12);
   for (const alarm of alarms) {
     expect(alarm.input.AlarmActions).toEqual([topicArn]);
     expect(alarm.input.Tags).toEqual(deploymentTagList("demo"));
@@ -237,8 +246,8 @@ it("upserts the same alarm names on redeploy instead of creating duplicates", as
   const names = commands
     .filter((command): command is PutMetricAlarmCommand => command instanceof PutMetricAlarmCommand)
     .map((command) => command.input.AlarmName);
-  expect(names).toHaveLength(22);
-  expect(new Set(names).size).toBe(11);
+  expect(names).toHaveLength(24);
+  expect(new Set(names).size).toBe(12);
 });
 
 it("does not touch AWS when creating alarms during a dry run", async () => {

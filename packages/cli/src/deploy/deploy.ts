@@ -146,6 +146,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
         { label: "admin-revalidation", name: adminResources.revalidationFunction },
       ],
       queueName: adminResources.revalidationQueue,
+      deadLetterQueueName: adminResources.revalidationDlq,
     });
 
     log(`API URL:   ${apiUrl}`);

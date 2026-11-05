@@ -21,7 +21,7 @@ onto the same schema without being recreated.
 | ----------- | ------------------------------------------------------------------------ |
 | S3          | Media bucket and admin assets bucket                                     |
 | DynamoDB    | Users, reset tokens, content types, content entries, and admin tag cache |
-| SQS         | Revalidation FIFO queue                                                  |
+| SQS         | Revalidation FIFO queue and FIFO dead-letter queue                       |
 | IAM         | API and admin Lambda execution roles                                     |
 | Lambda      | API, admin SSR, image optimization, and revalidation functions           |
 | CloudFront  | Admin distribution and redirect function                                 |
@@ -60,6 +60,17 @@ Logs storage cost. `undeploy` **keeps the log groups by default** because logs c
 troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's Lambda
 functions. Unrelated log groups in the account are never touched.
 
+## Revalidation dead-letter queue
+
+The admin revalidation queue is FIFO, so its dead-letter queue is also FIFO and is named
+`<prefix>-admin-revalidation-dlq.fifo`. `deploy` sets the queue's redrive policy with a maximum
+receive count of **5**: a message that fails processing five times moves to the dead-letter queue
+instead of being retried forever or discarded. Redeploying reapplies the same redrive policy, and the
+dead-letter queue is reused rather than duplicated. `undeploy` deletes both queues.
+
+The `<prefix>-revalidation-dlq-depth` alarm fires as soon as the dead-letter queue holds any message;
+the per-deployment dashboard also shows the same depth.
+
 ## Alarms and notifications
 
 `deploy` creates an SNS topic named `<prefix>-alarms` and one alarm for each failure mode:
@@ -70,6 +81,7 @@ functions. Unrelated log groups in the account are never touched.
 | `<prefix>-lambda-errors-<label>`    | `AWS/Lambda` `Errors` sum >= 1 over 5 minutes, per function.              |
 | `<prefix>-lambda-throttles-<label>` | `AWS/Lambda` `Throttles` sum >= 1 over 5 minutes, per function.           |
 | `<prefix>-revalidation-queue-age`   | `AWS/SQS` `ApproximateAgeOfOldestMessage` maximum >= 300 seconds.         |
+| `<prefix>-revalidation-dlq-depth`   | `AWS/SQS` `ApproximateNumberOfMessagesVisible` maximum >= 1 on the DLQ.   |
 | `<prefix>-log-ingestion`            | `AWS/Logs` `IncomingBytes` sum >= 1 GiB per day across the Lambda groups. |
 
 The function labels are `api`, `admin-server`, `admin-image`, and `admin-revalidation`. Alarms use
@@ -150,4 +162,5 @@ create/read permissions:
 Alarm management additionally needs `sns:CreateTopic`, `sns:Subscribe`,
 `sns:ListSubscriptionsByTopic`, `sns:DeleteTopic`, `cloudwatch:PutMetricAlarm`,
 `cloudwatch:DescribeAlarms`, and `cloudwatch:DeleteAlarms`. `cloudwatch:PutMetricAlarm` with tags also
-requires `cloudwatch:TagResource`.
+requires `cloudwatch:TagResource`. Dead-letter setup additionally needs `sqs:GetQueueAttributes` and
+`sqs:SetQueueAttributes`; teardown needs `sqs:DeleteQueue`.

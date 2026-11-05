@@ -482,6 +482,7 @@ export async function teardown(
   await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
   await deleteQueue(ctx, names.revalidationQueue);
+  await deleteQueue(ctx, names.revalidationDlq);
   await deleteObservability(ctx);
   await deleteOac(ctx, names.s3Oac);
   await deleteOac(ctx, names.lambdaOac);

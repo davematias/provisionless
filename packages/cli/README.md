@@ -186,18 +186,23 @@ Undeploy leaves SES identities in place because they can be shared with other ap
 
 Each deployment gets an SNS topic named `<prefix>-alarms` and CloudWatch alarms that publish to it:
 
-| Alarm                               | Fires when                                                  |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `<prefix>-api-5xx`                  | API Gateway returns at least one 5XX response in 5 minutes. |
-| `<prefix>-lambda-errors-<label>`    | A Lambda reports at least one error in 5 minutes.           |
-| `<prefix>-lambda-throttles-<label>` | A Lambda is throttled at least once in 5 minutes.           |
-| `<prefix>-revalidation-queue-age`   | The oldest revalidation message is at least 5 minutes old.  |
-| `<prefix>-log-ingestion`            | The deployment log groups ingest at least 1 GiB in one day. |
+| Alarm                               | Fires when                                                     |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `<prefix>-api-5xx`                  | API Gateway returns at least one 5XX response in 5 minutes.    |
+| `<prefix>-lambda-errors-<label>`    | A Lambda reports at least one error in 5 minutes.              |
+| `<prefix>-lambda-throttles-<label>` | A Lambda is throttled at least once in 5 minutes.              |
+| `<prefix>-revalidation-queue-age`   | The oldest revalidation message is at least 5 minutes old.     |
+| `<prefix>-revalidation-dlq-depth`   | The revalidation dead-letter queue holds one or more messages. |
+| `<prefix>-log-ingestion`            | The deployment log groups ingest at least 1 GiB in one day.    |
 
 `<label>` is `api`, `admin-server`, `admin-image`, or `admin-revalidation`. Pass
 `--alarm-email ops@example.com` to subscribe an address; AWS sends a confirmation email that must be
 accepted before notifications are delivered. Redeploying updates the alarms in place and does not
 duplicate the topic or subscription.
+
+The revalidation queue moves a message to its dead-letter queue after **5 failed receives**. Both
+queues are FIFO and tagged with the deployment. The dead-letter queue captures the message instead of
+silently dropping it, and the `<prefix>-revalidation-dlq-depth` alarm fires as soon as it is non-empty.
 
 Silence an alarm in the CloudWatch console or change its threshold there; a later deploy reapplies
 the documented defaults. To stop email notifications without removing the alarms, unsubscribe from
@@ -213,11 +218,11 @@ downloads the prebuilt artifacts for its version instead. Either way it provisio
 
 - **API** — a Lambda function behind an API Gateway HTTP API, plus DynamoDB tables for users,
   password reset tokens, content types, and content entries.
-- **Admin** — an S3 bucket (static assets and incremental cache), a DynamoDB tag cache, a
-  FIFO SQS revalidation queue, three Lambda functions (SSR, image optimization, and
-  revalidation), and a CloudFront distribution in front of the Lambda and S3 origins.
+- **Admin** — an S3 bucket (static assets and incremental cache), a DynamoDB tag cache, a FIFO
+  revalidation queue with a FIFO dead-letter queue, three Lambda functions (SSR, image optimization,
+  and revalidation), and a CloudFront distribution in front of the Lambda and S3 origins.
 - **Alarms** — an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors
-  and throttles, revalidation queue age, and daily log ingestion.
+  and throttles, revalidation queue age and dead-letter depth, and daily log ingestion.
 
 It uses the standard AWS credential chain. The caller must be allowed to manage IAM, Lambda,
 API Gateway, S3, DynamoDB, SQS, SNS, CloudWatch, and CloudFront. Running it again updates the
