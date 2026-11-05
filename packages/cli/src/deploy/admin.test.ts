@@ -31,6 +31,7 @@ import {
   CreateQueueCommand,
   GetQueueAttributesCommand,
   GetQueueUrlCommand,
+  SetQueueAttributesCommand,
   TagQueueCommand,
 } from "@aws-sdk/client-sqs";
 import {
@@ -49,6 +50,7 @@ import {
   ensureRevalidationEventSource,
   ensureRevalidationQueue,
   ensureTagCacheTable,
+  REVALIDATION_MAX_RECEIVE_COUNT,
   redirectFunctionCode,
   type AdminDomainConfig,
   type OpenNextOutput,
@@ -871,38 +873,139 @@ it("creates the admin tag cache table with deployment tags", async () => {
   expect(create?.input.Tags).toEqual(deploymentTagList("demo"));
 });
 
-it("creates the revalidation queue with deployment tags", async () => {
-  const commands: unknown[] = [];
-  const ctx = {
+function queueContext(
+  commands: unknown[],
+  respond: (command: unknown) => unknown,
+  dryRun = false,
+): DeployContext {
+  const send = async (command: unknown) => {
+    commands.push(command);
+    return respond(command);
+  };
+  return {
     region: "eu-west-1",
     accountId: "111122223333",
-    dryRun: false,
+    dryRun,
     repoRoot: ".",
     appPrefix: "demo",
     mediaBucket: "demo-media",
     log: () => undefined,
-    clients: {
-      sqs: {
-        send: async (command: unknown) => {
-          commands.push(command);
-          if (command instanceof GetQueueUrlCommand) {
-            const error = new Error("missing");
-            error.name = "QueueDoesNotExist";
-            throw error;
-          }
-          if (command instanceof CreateQueueCommand) {
-            return { QueueUrl: "https://sqs.eu-west-1.amazonaws.com/111122223333/demo.fifo" };
-          }
-          return {};
-        },
-      },
-    } as unknown as AwsClients,
+    clients: { sqs: { send } } as unknown as AwsClients,
   } as DeployContext;
+}
 
-  await ensureRevalidationQueue(ctx, "demo-admin-revalidation.fifo");
+function missingQueue(): never {
+  const error = new Error("missing");
+  error.name = "QueueDoesNotExist";
+  throw error;
+}
 
-  const create = commands.find((command) => command instanceof CreateQueueCommand) as
-    | CreateQueueCommand
-    | undefined;
-  expect(create?.input.tags).toEqual(deploymentTags("demo"));
+it("creates the revalidation and dead-letter queues and applies the redrive policy", async () => {
+  const commands: unknown[] = [];
+  const ctx = queueContext(commands, (command) => {
+    if (command instanceof GetQueueUrlCommand) {
+      return missingQueue();
+    }
+    if (command instanceof CreateQueueCommand) {
+      const name = command.input.QueueName ?? "";
+      return { QueueUrl: `https://sqs.eu-west-1.amazonaws.com/111122223333/${name}` };
+    }
+    if (command instanceof GetQueueAttributesCommand) {
+      return {
+        Attributes: {
+          QueueArn: "arn:aws:sqs:eu-west-1:111122223333:demo-admin-revalidation-dlq.fifo",
+        },
+      };
+    }
+    return {};
+  });
+
+  await ensureRevalidationQueue(
+    ctx,
+    "demo-admin-revalidation.fifo",
+    "demo-admin-revalidation-dlq.fifo",
+  );
+
+  const creates = commands.filter(
+    (command): command is CreateQueueCommand => command instanceof CreateQueueCommand,
+  );
+  expect(creates.map((command) => command.input.QueueName)).toEqual([
+    "demo-admin-revalidation-dlq.fifo",
+    "demo-admin-revalidation.fifo",
+  ]);
+  for (const create of creates) {
+    expect(create.input.tags).toEqual(deploymentTags("demo"));
+    expect(create.input.Attributes?.FifoQueue).toBe("true");
+  }
+
+  const redrive = commands.find(
+    (command): command is SetQueueAttributesCommand => command instanceof SetQueueAttributesCommand,
+  );
+  expect(redrive?.input.QueueUrl).toBe(
+    "https://sqs.eu-west-1.amazonaws.com/111122223333/demo-admin-revalidation.fifo",
+  );
+  expect(JSON.parse(redrive?.input.Attributes?.RedrivePolicy ?? "{}")).toEqual({
+    deadLetterTargetArn: "arn:aws:sqs:eu-west-1:111122223333:demo-admin-revalidation-dlq.fifo",
+    maxReceiveCount: String(REVALIDATION_MAX_RECEIVE_COUNT),
+  });
+});
+
+it("updates the redrive policy on existing queues without creating duplicates", async () => {
+  const commands: unknown[] = [];
+  const ctx = queueContext(commands, (command) => {
+    if (command instanceof GetQueueUrlCommand) {
+      const name = command.input.QueueName ?? "";
+      return { QueueUrl: `https://sqs.eu-west-1.amazonaws.com/111122223333/${name}` };
+    }
+    if (command instanceof GetQueueAttributesCommand) {
+      return {
+        Attributes: {
+          QueueArn: "arn:aws:sqs:eu-west-1:111122223333:demo-admin-revalidation-dlq.fifo",
+        },
+      };
+    }
+    return {};
+  });
+
+  await ensureRevalidationQueue(
+    ctx,
+    "demo-admin-revalidation.fifo",
+    "demo-admin-revalidation-dlq.fifo",
+  );
+
+  expect(commands.some((command) => command instanceof CreateQueueCommand)).toBe(false);
+  const tags = commands.filter(
+    (command): command is TagQueueCommand => command instanceof TagQueueCommand,
+  );
+  expect(tags).toHaveLength(2);
+  expect(commands.some((command) => command instanceof SetQueueAttributesCommand)).toBe(true);
+});
+
+it("reports dead-letter setup during a dry run without changing SQS", async () => {
+  const commands: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = queueContext(
+    commands,
+    (command) => {
+      if (command instanceof GetQueueUrlCommand) {
+        return missingQueue();
+      }
+      return {};
+    },
+    true,
+  );
+  ctx.log = (message: string) => logs.push(message);
+
+  await ensureRevalidationQueue(
+    ctx,
+    "demo-admin-revalidation.fifo",
+    "demo-admin-revalidation-dlq.fifo",
+  );
+
+  expect(commands.some((command) => command instanceof CreateQueueCommand)).toBe(false);
+  expect(commands.some((command) => command instanceof SetQueueAttributesCommand)).toBe(false);
+  expect(logs).toContain("would create SQS FIFO queue demo-admin-revalidation-dlq.fifo");
+  expect(logs).toContain(
+    "would send failed messages from demo-admin-revalidation.fifo to demo-admin-revalidation-dlq.fifo after 5 receives",
+  );
 });

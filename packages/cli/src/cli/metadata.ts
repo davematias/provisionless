@@ -32,10 +32,10 @@ export const COMMAND_HELP = {
     resources: [
       "API: IAM role, Lambda function, API Gateway HTTP API, and DynamoDB users, reset-tokens, content-types, and content-entries tables",
       "Email: an SES sending identity for the configured --email-from address, with send permission on the API role",
-      "Admin: S3 assets bucket, DynamoDB tag cache, FIFO SQS queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
+      "Admin: S3 assets bucket, DynamoDB tag cache, FIFO revalidation queue and dead-letter queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
       "Media: an S3 media bucket",
       "Logs: a CloudWatch log group for every Lambda function, with the configured retention period",
-      "Alarms: an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors and throttles, revalidation queue age, and daily log ingestion; an optional --alarm-email subscription requires inbox confirmation",
+      "Alarms: an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors and throttles, revalidation queue age and dead-letter depth, and daily log ingestion; an optional --alarm-email subscription requires inbox confirmation",
       "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set; the admin domain is aliased to the CloudFront distribution (with an apex/www redirect) and the API domain to an API Gateway custom domain, each with alias DNS records when a hosted zone is set",
     ],
   },
@@ -55,7 +55,7 @@ export const COMMAND_HELP = {
     ],
     resources: [
       "API: Lambda function, API Gateway HTTP API, IAM role, and the users, reset-tokens, content-types, and content-entries tables (unless keeping data)",
-      "Admin: CloudFront distribution, Lambdas, Function URLs, SQS queue, OACs, IAM role, tag cache and assets bucket (unless keeping data)",
+      "Admin: CloudFront distribution, Lambdas, Function URLs, revalidation and dead-letter queues, OACs, IAM role, tag cache and assets bucket (unless keeping data)",
       "Media: the S3 media bucket (unless keeping data)",
       "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
       "Logs: kept by default; with --delete-logs, deletes the CloudWatch log groups for the deployment's Lambda functions",

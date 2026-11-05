@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { DeleteLogGroupCommand } from "@aws-sdk/client-cloudwatch-logs";
 import { DeleteAlarmsCommand, DescribeAlarmsCommand } from "@aws-sdk/client-cloudwatch";
 import { DeleteTopicCommand } from "@aws-sdk/client-sns";
+import { DeleteQueueCommand, GetQueueUrlCommand } from "@aws-sdk/client-sqs";
 import type { AwsClients } from "../aws/clients.ts";
 import type { DeployContext } from "./context.ts";
 import { teardown } from "./undeploy.ts";
@@ -377,6 +378,35 @@ it("keeps log groups by default on a real teardown", async () => {
 
   expect(records.some((command) => command instanceof DeleteLogGroupCommand)).toBe(false);
   expect(logs).toContain("keeping CloudWatch log groups for this deployment");
+});
+
+it("deletes the revalidation and dead-letter queues", async () => {
+  const records: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createTeardownContext(records, logs, { dryRun: false });
+  (ctx.clients as unknown as { sqs: { send: (command: unknown) => Promise<unknown> } }).sqs = {
+    send: async (command: unknown) => {
+      records.push(command);
+      if (command instanceof GetQueueUrlCommand) {
+        return {
+          QueueUrl: `https://sqs.eu-west-1.amazonaws.com/111122223333/${command.input.QueueName}`,
+        };
+      }
+      return {};
+    },
+  };
+
+  await teardown(ctx, true);
+
+  const deleted = records
+    .filter((command): command is DeleteQueueCommand => command instanceof DeleteQueueCommand)
+    .map((command) => command.input.QueueUrl);
+  expect(deleted).toEqual([
+    "https://sqs.eu-west-1.amazonaws.com/111122223333/demo-admin-revalidation.fifo",
+    "https://sqs.eu-west-1.amazonaws.com/111122223333/demo-admin-revalidation-dlq.fifo",
+  ]);
+  expect(logs).toContain("deleted SQS queue demo-admin-revalidation.fifo");
+  expect(logs).toContain("deleted SQS queue demo-admin-revalidation-dlq.fifo");
 });
 
 it("deletes the deployment alarms and alarm topic on a real teardown", async () => {

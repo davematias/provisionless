@@ -14,6 +14,7 @@ export interface AdminResourceNames {
   assetsBucket: string;
   tagCacheTable: string;
   revalidationQueue: string;
+  revalidationDlq: string;
   role: string;
   serverFunction: string;
   imageFunction: string;
@@ -56,6 +57,7 @@ export function adminNames(appPrefix: string, accountId: string): AdminResourceN
     assetsBucket: `${appPrefix}-admin-assets-${accountId}`,
     tagCacheTable: `${appPrefix}-admin-tag-cache`,
     revalidationQueue: `${appPrefix}-admin-revalidation.fifo`,
+    revalidationDlq: `${appPrefix}-admin-revalidation-dlq.fifo`,
     role: `${appPrefix}-admin-lambda-role`,
     serverFunction: `${appPrefix}-admin-server`,
     imageFunction: `${appPrefix}-admin-image`,

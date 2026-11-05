@@ -35,6 +35,7 @@ import {
   CreateQueueCommand,
   GetQueueAttributesCommand,
   GetQueueUrlCommand,
+  SetQueueAttributesCommand,
 } from "@aws-sdk/client-sqs";
 
 import { resolveAdminArtifact } from "../artifacts/resolve.ts";
@@ -67,6 +68,9 @@ import { isAwsError, sleep } from "../util/aws.ts";
 import { zipDirectory } from "../util/zip.ts";
 import { cliVersion } from "../version.ts";
 import type { DeployContext } from "./context.ts";
+
+/** Failed revalidation messages move to the dead-letter queue after this many receives. */
+export const REVALIDATION_MAX_RECEIVE_COUNT = 5;
 
 const CACHING_DISABLED_POLICY = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad";
 const CACHING_OPTIMIZED_POLICY = "658327ea-f89d-4fab-a63d-7e88639e58f6";
@@ -178,16 +182,10 @@ export async function ensureTagCacheTable(ctx: DeployContext, tableName: string)
   throw new Error(`Timed out waiting for DynamoDB table ${tableName}`);
 }
 
-export async function ensureRevalidationQueue(
-  ctx: DeployContext,
-  queueName: string,
-): Promise<string> {
+async function findQueueUrl(ctx: DeployContext, queueName: string): Promise<string | undefined> {
   try {
     const existing = await ctx.clients.sqs.send(new GetQueueUrlCommand({ QueueName: queueName }));
-    if (existing.QueueUrl) {
-      await tagQueue(ctx, existing.QueueUrl);
-      return existing.QueueUrl;
-    }
+    return existing.QueueUrl;
   } catch (error) {
     const missing =
       isAwsError(error, "QueueDoesNotExist") ||
@@ -195,6 +193,15 @@ export async function ensureRevalidationQueue(
     if (!missing) {
       throw error;
     }
+    return undefined;
+  }
+}
+
+async function ensureQueue(ctx: DeployContext, queueName: string): Promise<string> {
+  const existing = await findQueueUrl(ctx, queueName);
+  if (existing) {
+    await tagQueue(ctx, existing);
+    return existing;
   }
 
   if (ctx.dryRun) {
@@ -214,6 +221,48 @@ export async function ensureRevalidationQueue(
     throw new Error("SQS did not return a queue URL");
   }
   return created.QueueUrl;
+}
+
+export async function ensureRevalidationQueue(
+  ctx: DeployContext,
+  queueName: string,
+  deadLetterQueueName: string,
+): Promise<string> {
+  const deadLetterQueueUrl = await ensureQueue(ctx, deadLetterQueueName);
+  if (ctx.dryRun) {
+    ctx.log(
+      `would send failed messages from ${queueName} to ${deadLetterQueueName} after ${REVALIDATION_MAX_RECEIVE_COUNT} receives`,
+    );
+    return ensureQueue(ctx, queueName);
+  }
+
+  const attributes = await ctx.clients.sqs.send(
+    new GetQueueAttributesCommand({
+      QueueUrl: deadLetterQueueUrl,
+      AttributeNames: ["QueueArn"],
+    }),
+  );
+  const deadLetterQueueArn = attributes.Attributes?.QueueArn;
+  if (!deadLetterQueueArn) {
+    throw new Error(`Could not resolve the dead-letter queue ARN for ${deadLetterQueueName}`);
+  }
+
+  const queueUrl = await ensureQueue(ctx, queueName);
+  await ctx.clients.sqs.send(
+    new SetQueueAttributesCommand({
+      QueueUrl: queueUrl,
+      Attributes: {
+        RedrivePolicy: JSON.stringify({
+          deadLetterTargetArn: deadLetterQueueArn,
+          maxReceiveCount: String(REVALIDATION_MAX_RECEIVE_COUNT),
+        }),
+      },
+    }),
+  );
+  ctx.log(
+    `configured dead-letter queue ${deadLetterQueueName} (max ${REVALIDATION_MAX_RECEIVE_COUNT} receives)`,
+  );
+  return queueUrl;
 }
 
 async function ensureFunctionUrl(ctx: DeployContext, functionName: string): Promise<string> {
@@ -712,6 +761,7 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
     assetsBucket,
     tagCacheTable: tableName,
     revalidationQueue: queueName,
+    revalidationDlq: deadLetterQueueName,
     role: roleName,
     serverFunction: serverName,
     imageFunction: imageName,
@@ -721,7 +771,7 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
 
   await ensureBucket(ctx, assetsBucket);
   await ensureTagCacheTable(ctx, tableName);
-  const queueUrl = await ensureRevalidationQueue(ctx, queueName);
+  const queueUrl = await ensureRevalidationQueue(ctx, queueName, deadLetterQueueName);
 
   let queueArn = `arn:aws:sqs:${ctx.region}:${ctx.accountId}:${queueName}`;
   if (!ctx.dryRun) {
