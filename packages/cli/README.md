@@ -33,6 +33,8 @@ Options:
   without it the CLI prints the records to add yourself.
 - `--no-domains` — skip custom-domain configuration entirely and deploy without domains; useful for
   non-interactive runs (scripts and CI) when you do not want custom domains.
+- `--log-retention <days>` — days to keep Lambda logs (default `30`; saved in `.provisionless`).
+  CloudWatch Logs only accepts specific values such as 1, 7, 14, 30, 60, 90, 180, and 365.
 - `--test-user-username <username>` / `--test-user-password <password>` /
   `--test-user-email <email>` — supply the test user's credentials and email address
   non-interactively (prompted when omitted).
@@ -80,6 +82,8 @@ npx provisionless undeploy
 The CLI reads the app prefix from `.provisionless` (or `--prefix`) and asks whether to keep data
 (S3 objects and DynamoDB tables) before deleting anything. Use `--keep-data` / `--no-keep-data` to
 answer up front, `--yes` to skip the confirmation, and `--dry-run` to see what would be removed.
+CloudWatch logs are **kept by default** because they can be important for troubleshooting; pass
+`--delete-logs` to remove the deployment's log groups (with `--yes`, logs stay unless you pass it).
 
 Domain resources recorded in `.provisionless` are removed too: the API Gateway custom domain and its
 mappings, the Route 53 alias and ACM-validation records for the managed admin/API domains (the CLI only

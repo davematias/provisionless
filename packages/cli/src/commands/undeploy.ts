@@ -12,6 +12,7 @@ export function registerUndeployCommand(program: Command): void {
     .option("-p, --prefix <prefix>", "App prefix (read from .provisionless when omitted)")
     .option("--keep-data", "Keep S3 objects and DynamoDB tables")
     .option("--no-keep-data", "Delete S3 objects and DynamoDB tables too")
+    .option("--delete-logs", "Delete the deployment's CloudWatch log groups (kept by default)")
     .option("-y, --yes", "Do not prompt for confirmation", false)
     .option("--dry-run", "Report what would be deleted without changing AWS", false)
     .addHelpText("after", formatCommandHelp(COMMAND_HELP.undeploy))
@@ -20,6 +21,7 @@ export function registerUndeployCommand(program: Command): void {
         region?: string;
         prefix?: string;
         keepData?: boolean;
+        deleteLogs?: boolean;
         yes: boolean;
         dryRun: boolean;
       }) => {
@@ -27,6 +29,7 @@ export function registerUndeployCommand(program: Command): void {
           region: options.region,
           prefix: options.prefix,
           keepData: options.keepData,
+          deleteLogs: options.deleteLogs,
           yes: options.yes,
           dryRun: options.dryRun,
         });

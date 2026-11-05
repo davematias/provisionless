@@ -28,6 +28,7 @@ onto the same schema without being recreated.
 | API Gateway | HTTP API, `$default` stage, and custom domain                            |
 | ACM         | Admin and API certificates, including reused certificates                |
 | SES         | Verified sender identity                                                 |
+| CloudWatch  | Lambda log groups                                                        |
 
 ## Resources AWS does not allow tagging
 
@@ -42,9 +43,21 @@ and relationship, and discovery reaches them through their tagged parent.
 - **IAM inline policies and attached managed policies** — the roles are tagged; policy documents are
   not.
 - **Route 53 records** — records cannot be tagged, and the hosted zone is pre-existing and user-owned.
-- **CloudWatch log groups** — created implicitly by Lambda, not provisioned by `deploy`.
 - **CloudFront managed cache and origin request policies** — AWS-managed policy IDs, not created by
   `deploy`.
+
+## Lambda log retention
+
+`deploy` creates the `/aws/lambda/<function>` log group for every Lambda it provisions and applies a
+retention period. The default is 30 days; set `--log-retention <days>` on deploy to choose another
+value. The choice is saved in `.provisionless` and reused on later deploys. CloudWatch Logs only
+accepts specific retention values (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731,
+1096, 1827, 2192, 2557, 2922, 3288, or 3653 days), so other values are rejected.
+
+Longer retention keeps more history for debugging and audits; shorter retention lowers CloudWatch
+Logs storage cost. `undeploy` **keeps the log groups by default** because logs can be important for
+troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's Lambda
+functions. Unrelated log groups in the account are never touched.
 
 ## Discovering deployments
 
@@ -100,3 +113,4 @@ create/read permissions:
 - `apigateway:TagResource`
 - `acm:AddTagsToCertificate`
 - `ses:TagResource`
+- `logs:CreateLogGroup`, `logs:PutRetentionPolicy`, `logs:TagResource`, and `logs:DeleteLogGroup`

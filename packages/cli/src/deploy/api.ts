@@ -24,6 +24,7 @@ import {
 
 import { bundleApi } from "../artifacts/api-bundle.ts";
 import { resolveApiArtifact } from "../artifacts/resolve.ts";
+import { DEFAULT_LOG_RETENTION, ensureLogGroup } from "../aws/logs.ts";
 import {
   addInvokePermission,
   deployFunction,
@@ -528,6 +529,7 @@ export async function deployApi(ctx: DeployContext, jwtSecret: string): Promise<
     memorySize: 1024,
     env: apiEnv(ctx, jwtSecret),
   });
+  await ensureLogGroup(ctx, names.function, ctx.logRetention ?? DEFAULT_LOG_RETENTION);
   const url = await ensureHttpApi(ctx, functionArn);
   ctx.log(`API deployed: ${url}`);
   return url;

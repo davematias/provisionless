@@ -1,6 +1,7 @@
 import { ACMClient } from "@aws-sdk/client-acm";
 import { ApiGatewayV2Client } from "@aws-sdk/client-apigatewayv2";
 import { CloudFrontClient } from "@aws-sdk/client-cloudfront";
+import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { IAMClient } from "@aws-sdk/client-iam";
 import { LambdaClient } from "@aws-sdk/client-lambda";
@@ -20,6 +21,7 @@ export interface AwsClients {
   ses: SESv2Client;
   dynamodb: DynamoDBClient;
   cloudfront: CloudFrontClient;
+  logs: CloudWatchLogsClient;
   acm: ACMClient;
   acmUsEast1: ACMClient;
   route53: Route53Client;
@@ -36,6 +38,7 @@ export function createAwsClients(region: string): AwsClients {
     ses: new SESv2Client({ region }),
     dynamodb: new DynamoDBClient({ region }),
     cloudfront: new CloudFrontClient({ region: "us-east-1" }),
+    logs: new CloudWatchLogsClient({ region }),
     acm: new ACMClient({ region }),
     acmUsEast1: new ACMClient({ region: "us-east-1" }),
     route53: new Route53Client({ region: "us-east-1" }),

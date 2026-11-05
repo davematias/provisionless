@@ -7,6 +7,7 @@ import {
   resolveDomains,
   resolveEmailFrom,
   resolveJwtSecret,
+  resolveLogRetention,
   resolveRegion,
 } from "../config/config.ts";
 import { createLogger } from "../util/log.ts";
@@ -59,6 +60,11 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     });
 
     const jwtSecret = resolveJwtSecret(repoRoot, !options.dryRun);
+    const logRetention = resolveLogRetention({
+      repoRoot,
+      retention: options.logRetention,
+      persist: !options.dryRun,
+    });
     const emailFrom = resolveEmailFrom({
       repoRoot,
       emailFrom: options.emailFrom,
@@ -98,6 +104,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       adminDomain: domains.adminDomain,
       apiDomain: domains.apiDomain,
       hostedZone: domains.hostedZone,
+      logRetention,
       log,
       clients,
     };

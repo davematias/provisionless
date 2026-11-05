@@ -35,6 +35,8 @@ function resourceKind(service: string, resource: string): { kind: string; name: 
       return { kind: "certificate", name: resource.replace(/^certificate\//u, "") };
     case "ses":
       return { kind: "identity", name: resource.replace(/^identity\//u, "") };
+    case "logs":
+      return { kind: "log-group", name: resource.replace(/^log-group:/u, "") };
     default: {
       const [kind = "resource", ...rest] = resource.split(/[/:]/u);
       return { kind, name: rest.join("/") || resource };
