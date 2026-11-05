@@ -67,6 +67,17 @@ it("reports that existing Lambdas would be deleted in a dry run", async () => {
 
   expect(messages).toContain("would delete Lambda demo-admin-revalidation");
   expect(messages).toContain("would delete Lambda demo-api");
+  expect(messages).not.toContain("would delete log group /aws/lambda/demo-api");
+  expect(messages).toContain("keeping CloudWatch log groups for this deployment");
+});
+
+it("would delete log groups only when explicitly requested", async () => {
+  const messages: string[] = [];
+  const ctx = createContext(async () => ({}));
+  ctx.log = (message: string) => messages.push(message);
+
+  await teardown(ctx, true, true);
+
   expect(messages).toContain("would delete log group /aws/lambda/demo-api");
   expect(messages).toContain("would delete log group /aws/lambda/demo-admin-server");
 });
@@ -321,7 +332,7 @@ it("deletes the users and reset token tables when the data is removed", async ()
   const logs: string[] = [];
   const ctx = createTeardownContext(records, logs, { dryRun: false });
 
-  await teardown(ctx, false);
+  await teardown(ctx, false, true);
 
   const deleted = records
     .filter(
@@ -345,4 +356,15 @@ it("deletes the users and reset token tables when the data is removed", async ()
     "/aws/lambda/demo-admin-image",
     "/aws/lambda/demo-admin-revalidation",
   ]);
+});
+
+it("keeps log groups by default on a real teardown", async () => {
+  const records: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createTeardownContext(records, logs, { dryRun: false });
+
+  await teardown(ctx, false);
+
+  expect(records.some((command) => command instanceof DeleteLogGroupCommand)).toBe(false);
+  expect(logs).toContain("keeping CloudWatch log groups for this deployment");
 });

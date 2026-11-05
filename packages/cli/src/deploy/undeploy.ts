@@ -64,6 +64,7 @@ export interface UndeployOptions {
   region?: string;
   prefix?: string;
   keepData?: boolean;
+  deleteLogs?: boolean;
   yes: boolean;
   dryRun: boolean;
 }
@@ -453,7 +454,11 @@ export function domainManagedNames(ctx: DeployContext): string[] {
   ];
 }
 
-export async function teardown(ctx: DeployContext, keepData: boolean): Promise<void> {
+export async function teardown(
+  ctx: DeployContext,
+  keepData: boolean,
+  deleteLogs = false,
+): Promise<void> {
   const names = adminNames(ctx.appPrefix, ctx.accountId);
   const api = apiNames(ctx.appPrefix);
 
@@ -465,10 +470,14 @@ export async function teardown(ctx: DeployContext, keepData: boolean): Promise<v
   await deleteLambda(ctx, names.imageFunction);
   await deleteLambda(ctx, names.serverFunction);
   await deleteLambda(ctx, api.function);
-  await deleteLogGroup(ctx, api.function);
-  await deleteLogGroup(ctx, names.serverFunction);
-  await deleteLogGroup(ctx, names.imageFunction);
-  await deleteLogGroup(ctx, names.revalidationFunction);
+  if (deleteLogs) {
+    await deleteLogGroup(ctx, api.function);
+    await deleteLogGroup(ctx, names.serverFunction);
+    await deleteLogGroup(ctx, names.imageFunction);
+    await deleteLogGroup(ctx, names.revalidationFunction);
+  } else {
+    ctx.log("keeping CloudWatch log groups for this deployment");
+  }
   await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
   await deleteQueue(ctx, names.revalidationQueue);
@@ -524,12 +533,24 @@ export async function undeploy(options: UndeployOptions): Promise<void> {
         : await confirm(prompter.ask, "Keep data (S3 objects and DynamoDB tables)?", true);
     }
 
+    let deleteLogs = options.deleteLogs;
+    if (deleteLogs === undefined) {
+      deleteLogs =
+        options.yes || options.dryRun
+          ? false
+          : await confirm(
+              prompter.ask,
+              "Delete CloudWatch logs for this deployment? Logs can help with troubleshooting.",
+              false,
+            );
+    }
+
     if (!options.yes) {
       const proceed = await confirm(
         prompter.ask,
         `Delete resources for app "${appPrefix}" in ${region}${
           keepData ? " (keeping data)" : " (including data)"
-        }?`,
+        }${deleteLogs ? " (deleting logs)" : " (keeping logs)"}?`,
         false,
       );
       if (!proceed) {
@@ -568,7 +589,13 @@ export async function undeploy(options: UndeployOptions): Promise<void> {
         : `undeploying app "${appPrefix}" from account ${identity.Account} in ${region}`,
     );
 
-    await teardown(ctx, keepData);
+    log(
+      deleteLogs
+        ? "CloudWatch logs for this deployment will be deleted"
+        : "CloudWatch logs will be kept; pass --delete-logs to remove them",
+    );
+
+    await teardown(ctx, keepData, deleteLogs);
   } finally {
     prompter.close();
   }

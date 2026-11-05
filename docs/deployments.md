@@ -55,8 +55,9 @@ accepts specific retention values (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 36
 1096, 1827, 2192, 2557, 2922, 3288, or 3653 days), so other values are rejected.
 
 Longer retention keeps more history for debugging and audits; shorter retention lowers CloudWatch
-Logs storage cost. `undeploy` deletes only the four log groups for the deployment's Lambda functions
-and leaves unrelated log groups in the account untouched.
+Logs storage cost. `undeploy` **keeps the log groups by default** because logs can be important for
+troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's Lambda
+functions. Unrelated log groups in the account are never touched.
 
 ## Discovering deployments
 

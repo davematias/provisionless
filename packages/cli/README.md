@@ -82,6 +82,8 @@ npx provisionless undeploy
 The CLI reads the app prefix from `.provisionless` (or `--prefix`) and asks whether to keep data
 (S3 objects and DynamoDB tables) before deleting anything. Use `--keep-data` / `--no-keep-data` to
 answer up front, `--yes` to skip the confirmation, and `--dry-run` to see what would be removed.
+CloudWatch logs are **kept by default** because they can be important for troubleshooting; pass
+`--delete-logs` to remove the deployment's log groups (with `--yes`, logs stay unless you pass it).
 
 Domain resources recorded in `.provisionless` are removed too: the API Gateway custom domain and its
 mappings, the Route 53 alias and ACM-validation records for the managed admin/API domains (the CLI only

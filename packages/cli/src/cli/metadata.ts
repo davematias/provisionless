@@ -44,6 +44,7 @@ export const COMMAND_HELP = {
       "provisionless undeploy",
       "provisionless undeploy --prefix acme --keep-data",
       "provisionless undeploy --prefix acme --no-keep-data --yes",
+      "provisionless undeploy --prefix acme --delete-logs",
       "provisionless undeploy --dry-run",
     ],
     prerequisites: [
@@ -55,7 +56,7 @@ export const COMMAND_HELP = {
       "Admin: CloudFront distribution, Lambdas, Function URLs, SQS queue, OACs, IAM role, tag cache and assets bucket (unless keeping data)",
       "Media: the S3 media bucket (unless keeping data)",
       "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
-      "Logs: the CloudWatch log groups for the deployment's Lambda functions",
+      "Logs: kept by default; with --delete-logs, deletes the CloudWatch log groups for the deployment's Lambda functions",
     ],
   },
   list: {
