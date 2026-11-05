@@ -55,6 +55,37 @@ export const COMMAND_HELP = {
       "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
     ],
   },
+  list: {
+    summary: "List Provisionless deployments found across the account's enabled regions.",
+    examples: [
+      "provisionless list",
+      "provisionless list --region eu-west-1",
+      "provisionless list --region us-east-1,eu-west-1 --json",
+    ],
+    prerequisites: [
+      "AWS credentials allowed to read resource tags, CloudFront distributions, and API Gateway APIs",
+      "Resources tagged by a previous provisionless deploy",
+    ],
+    resources: [
+      "Read-only: calls the Resource Groups Tagging API, CloudFront, and API Gateway; changes nothing",
+    ],
+  },
+  status: {
+    summary: "Show the resources, URLs, and health of one Provisionless deployment.",
+    examples: [
+      "provisionless status --prefix acme",
+      "provisionless status --prefix acme --region eu-west-1",
+      "provisionless status --prefix acme --json",
+      "provisionless status --prefix acme --no-check",
+    ],
+    prerequisites: [
+      "AWS credentials allowed to read resource tags, CloudFront distributions, and API Gateway APIs",
+      "The app prefix, or run provisionless list first",
+    ],
+    resources: [
+      "Read-only: lists tagged resources and optionally probes the admin URL and API /openapi.json; changes nothing",
+    ],
+  },
 } satisfies Record<string, CommandHelp>;
 
 export function commandHelp(name: string): CommandHelp | undefined {

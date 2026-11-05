@@ -46,6 +46,38 @@ and relationship, and discovery reaches them through their tagged parent.
 - **CloudFront managed cache and origin request policies** — AWS-managed policy IDs, not created by
   `deploy`.
 
+## Discovering deployments
+
+Two read-only commands use the tags to find and inspect deployments without a local `.provisionless`
+file:
+
+```bash
+provisionless list [--region <regions>] [--json]
+provisionless status --prefix <prefix> [--region <region>] [--json] [--no-check]
+```
+
+`list` searches every enabled region by default (or the comma-separated `--region` list), groups
+tagged resources by `provisionless:app`, and prints the prefix, region, admin URL, API URL, and
+health. `status` shows the tagged resource inventory, URLs, and health for one deployment; it also
+probes the admin URL and API `/openapi.json` unless `--no-check` is passed.
+
+Health is `healthy` when the tagged CloudFront distribution is deployed and the HTTP API has a
+`$default` stage, `deploying` while CloudFront is updating, and `degraded` when an anchor is missing
+or a live check fails. `unknown` means neither a distribution nor an API was tagged for the prefix.
+
+Global resources (CloudFront, IAM roles, and S3 buckets) are tagged in `us-east-1`; `status` includes
+that region when a single `--region` is requested so those resources are still found. If the same
+prefix is deployed in multiple regions, `list` shows one row per region and `status` requires
+`--region`.
+
+### Required read permissions
+
+- `tag:GetResources`
+- `account:ListRegions` (skipped when `--region` is passed)
+- `cloudfront:GetDistribution`
+- `apigateway:GetApi`, `apigateway:GetStages`, `apigateway:GetDomainNames`,
+  `apigateway:GetApiMappings`
+
 ## Discovery
 
 The tagged resources are the discovery anchors. Querying `provisionless:managed=true` (optionally

@@ -5,6 +5,8 @@ import { Command } from "commander";
 import { registerHelpCommand } from "./cli/help.ts";
 import { CLI_NOTE } from "./cli/metadata.ts";
 import { registerDeployCommand } from "./commands/deploy.ts";
+import { registerListCommand } from "./commands/list.ts";
+import { registerStatusCommand } from "./commands/status.ts";
 import { registerUndeployCommand } from "./commands/undeploy.ts";
 
 const require = createRequire(import.meta.url);
@@ -24,6 +26,8 @@ export function createProgram(): Command {
 
   registerDeployCommand(program);
   registerUndeployCommand(program);
+  registerListCommand(program);
+  registerStatusCommand(program);
   registerHelpCommand(program);
 
   return program;
