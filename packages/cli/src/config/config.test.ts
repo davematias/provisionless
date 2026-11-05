@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 
 import {
   loadConfig,
+  resolveAlarmEmail,
   resolveAppPrefix,
   resolveDomains,
   resolveEmailFrom,
@@ -301,6 +302,59 @@ it("does not persist the SES sender during a dry run", () => {
   });
 
   expect(loadConfig(repo)?.emailFrom).toBeUndefined();
+});
+
+it("saves and reuses the alarm email address", () => {
+  const repo = tempRepo();
+
+  const alarmEmail = resolveAlarmEmail({
+    repoRoot: repo,
+    alarmEmail: "ops@example.com",
+    log: noop,
+    persist: true,
+  });
+
+  expect(alarmEmail).toBe("ops@example.com");
+  expect(loadConfig(repo)?.alarmEmail).toBe("ops@example.com");
+
+  expect(resolveAlarmEmail({ repoRoot: repo, log: noop, persist: true })).toBe("ops@example.com");
+});
+
+it("leaves alarm notifications without an email subscriber when unset", () => {
+  const logs: string[] = [];
+
+  const alarmEmail = resolveAlarmEmail({
+    repoRoot: tempRepo(),
+    log: (message) => logs.push(message),
+    persist: true,
+  });
+
+  expect(alarmEmail).toBeUndefined();
+  expect(logs.some((message) => message.includes("without an email subscriber"))).toBe(true);
+});
+
+it("rejects an invalid alarm email address", () => {
+  expect(() =>
+    resolveAlarmEmail({
+      repoRoot: tempRepo(),
+      alarmEmail: "not-an-email",
+      log: noop,
+      persist: true,
+    }),
+  ).toThrow();
+});
+
+it("does not persist the alarm email during a dry run", () => {
+  const repo = tempRepo();
+
+  resolveAlarmEmail({
+    repoRoot: repo,
+    alarmEmail: "ops@example.com",
+    log: noop,
+    persist: false,
+  });
+
+  expect(loadConfig(repo)?.alarmEmail).toBeUndefined();
 });
 
 it("defaults log retention to 30 days", () => {

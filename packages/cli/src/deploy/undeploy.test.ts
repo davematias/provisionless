@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
 
 import { DeleteLogGroupCommand } from "@aws-sdk/client-cloudwatch-logs";
+import { DeleteAlarmsCommand, DescribeAlarmsCommand } from "@aws-sdk/client-cloudwatch";
+import { DeleteTopicCommand } from "@aws-sdk/client-sns";
 import type { AwsClients } from "../aws/clients.ts";
 import type { DeployContext } from "./context.ts";
 import { teardown } from "./undeploy.ts";
@@ -15,6 +17,8 @@ function createContext(send: (command: unknown) => Promise<unknown>): DeployCont
     },
     lambda: { send },
     logs: { send },
+    cloudwatch: { send },
+    sns: { send },
     apiGateway: { send: async () => ({ Items: [] }) },
     sqs: {
       send: async () => {
@@ -184,6 +188,9 @@ function createTeardownContext(
       const arn = (command as { input: { CertificateArn?: string } }).input.CertificateArn ?? "";
       return options.certDeleteError(arn);
     }
+    if (command instanceof DescribeAlarmsCommand) {
+      return { MetricAlarms: [{ AlarmName: "demo-api-5xx" }] };
+    }
     return {};
   };
 
@@ -202,6 +209,8 @@ function createTeardownContext(
       },
     },
     logs: { send },
+    cloudwatch: { send },
+    sns: { send },
     apiGateway: { send },
     sqs: {
       send: async (command: unknown) => {
@@ -254,6 +263,7 @@ it("dry run lists the domain resources that would be removed", async () => {
 
   expect(logs).toContain("would delete CloudFront redirect function demo-admin-redirect");
   expect(logs).toContain("would delete API Gateway custom domain api.example.com and its mappings");
+  expect(logs).toContain("would delete CloudWatch alarms and SNS topic demo-alarms for demo");
   expect(
     logs.some((message) => message.includes("would delete Route 53 record example.com. (A)")),
   ).toBe(true);
@@ -367,4 +377,21 @@ it("keeps log groups by default on a real teardown", async () => {
 
   expect(records.some((command) => command instanceof DeleteLogGroupCommand)).toBe(false);
   expect(logs).toContain("keeping CloudWatch log groups for this deployment");
+});
+
+it("deletes the deployment alarms and alarm topic on a real teardown", async () => {
+  const records: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createTeardownContext(records, logs, { dryRun: false });
+
+  await teardown(ctx, true);
+
+  expect(records.some((command) => command instanceof DescribeAlarmsCommand)).toBe(true);
+  const deleted = records.find((command) => command instanceof DeleteAlarmsCommand) as
+    | DeleteAlarmsCommand
+    | undefined;
+  expect(deleted?.input.AlarmNames).toEqual(["demo-api-5xx"]);
+  expect(records.some((command) => command instanceof DeleteTopicCommand)).toBe(true);
+  expect(logs).toContain("deleted 1 CloudWatch alarms");
+  expect(logs).toContain("deleted SNS topic demo-alarms");
 });

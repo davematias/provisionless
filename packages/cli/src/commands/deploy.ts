@@ -15,6 +15,10 @@ export function registerDeployCommand(program: Command): void {
       "--email-from <address>",
       "Verified SES sender address (optional; enables reset emails)",
     )
+    .option(
+      "--alarm-email <address>",
+      "Email address subscribed to CloudWatch alarm notifications (optional)",
+    )
     .option("--admin-domain <domain>", "Custom domain for the admin site (prompted when omitted)")
     .option("--api-domain <domain>", "Custom domain for the API (prompted when omitted)")
     .option("--hosted-zone <id-or-name>", "Route 53 hosted zone for automatic DNS records")
@@ -34,6 +38,7 @@ export function registerDeployCommand(program: Command): void {
         prefix?: string;
         mediaBucket?: string;
         emailFrom?: string;
+        alarmEmail?: string;
         adminDomain?: string;
         apiDomain?: string;
         hostedZone?: string;
@@ -49,6 +54,7 @@ export function registerDeployCommand(program: Command): void {
           prefix: options.prefix,
           mediaBucket: options.mediaBucket,
           emailFrom: options.emailFrom,
+          alarmEmail: options.alarmEmail,
           adminDomain: options.adminDomain,
           apiDomain: options.apiDomain,
           hostedZone: options.hostedZone,

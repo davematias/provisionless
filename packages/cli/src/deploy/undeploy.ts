@@ -41,6 +41,7 @@ import {
 import { DeleteQueueCommand, GetQueueUrlCommand } from "@aws-sdk/client-sqs";
 import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 
+import { deleteObservability } from "../aws/alarms.ts";
 import { createAwsClients } from "../aws/clients.ts";
 import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames, apiNames } from "../aws/names.ts";
@@ -481,6 +482,7 @@ export async function teardown(
   await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
   await deleteQueue(ctx, names.revalidationQueue);
+  await deleteObservability(ctx);
   await deleteOac(ctx, names.s3Oac);
   await deleteOac(ctx, names.lambdaOac);
 

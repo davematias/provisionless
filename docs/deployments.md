@@ -28,7 +28,8 @@ onto the same schema without being recreated.
 | API Gateway | HTTP API, `$default` stage, and custom domain                            |
 | ACM         | Admin and API certificates, including reused certificates                |
 | SES         | Verified sender identity                                                 |
-| CloudWatch  | Lambda log groups                                                        |
+| SNS         | Alarm notification topic                                                 |
+| CloudWatch  | Lambda log groups and alarms                                             |
 
 ## Resources AWS does not allow tagging
 
@@ -58,6 +59,35 @@ Longer retention keeps more history for debugging and audits; shorter retention 
 Logs storage cost. `undeploy` **keeps the log groups by default** because logs can be important for
 troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's Lambda
 functions. Unrelated log groups in the account are never touched.
+
+## Alarms and notifications
+
+`deploy` creates an SNS topic named `<prefix>-alarms` and one alarm for each failure mode:
+
+| Alarm                               | Metric and threshold                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `<prefix>-api-5xx`                  | `AWS/ApiGateway` `5XXError` sum >= 1 over 5 minutes.                      |
+| `<prefix>-lambda-errors-<label>`    | `AWS/Lambda` `Errors` sum >= 1 over 5 minutes, per function.              |
+| `<prefix>-lambda-throttles-<label>` | `AWS/Lambda` `Throttles` sum >= 1 over 5 minutes, per function.           |
+| `<prefix>-revalidation-queue-age`   | `AWS/SQS` `ApproximateAgeOfOldestMessage` maximum >= 300 seconds.         |
+| `<prefix>-log-ingestion`            | `AWS/Logs` `IncomingBytes` sum >= 1 GiB per day across the Lambda groups. |
+
+The function labels are `api`, `admin-server`, `admin-image`, and `admin-revalidation`. Alarms use
+`notBreaching` for missing data so quiet deployment windows do not create false alarms.
+
+Pass `--alarm-email <address>` to subscribe an email address. SNS sends a confirmation email; no
+notifications are delivered until the link in that email is accepted. Without the flag the topic and
+alarms still exist but have no subscriber. Redeploying updates the topic, subscription, and alarms in
+place without duplicating them.
+
+To change a threshold, edit the alarm in the CloudWatch console; a later deploy reapplies these
+documented defaults. To silence notifications without deleting the alarms, unsubscribe in SNS.
+`undeploy` deletes the deployment alarms and topic, including subscriptions, and leaves other
+prefixes untouched.
+
+CloudWatch alarms incur a small monthly charge. For spend protection beyond these metrics, create an
+AWS Budget with an alert in `us-east-1`, since Budgets is a global service and can cover services the
+CLI does not provision.
 
 ## Discovering deployments
 
@@ -113,4 +143,11 @@ create/read permissions:
 - `apigateway:TagResource`
 - `acm:AddTagsToCertificate`
 - `ses:TagResource`
+- `sns:TagResource`
+- `cloudwatch:TagResource`
 - `logs:CreateLogGroup`, `logs:PutRetentionPolicy`, `logs:TagResource`, and `logs:DeleteLogGroup`
+
+Alarm management additionally needs `sns:CreateTopic`, `sns:Subscribe`,
+`sns:ListSubscriptionsByTopic`, `sns:DeleteTopic`, `cloudwatch:PutMetricAlarm`,
+`cloudwatch:DescribeAlarms`, and `cloudwatch:DeleteAlarms`. `cloudwatch:PutMetricAlarm` with tags also
+requires `cloudwatch:TagResource`.

@@ -47,6 +47,14 @@ it("parses resource kinds and names from ARNs", () => {
       tagged("arn:aws:logs:eu-west-1:111122223333:log-group:/aws/lambda/demo-api", "eu-west-1"),
     ),
   ).toMatchObject({ service: "logs", kind: "log-group", name: "/aws/lambda/demo-api" });
+  expect(
+    parseTaggedResource(tagged("arn:aws:sns:eu-west-1:111122223333:demo-alarms", "eu-west-1")),
+  ).toMatchObject({ service: "sns", kind: "topic", name: "demo-alarms" });
+  expect(
+    parseTaggedResource(
+      tagged("arn:aws:cloudwatch:eu-west-1:111122223333:alarm:demo-api-5xx", "eu-west-1"),
+    ),
+  ).toMatchObject({ service: "cloudwatch", kind: "alarm", name: "demo-api-5xx" });
 });
 
 it("groups resources by prefix and attaches global resources", () => {

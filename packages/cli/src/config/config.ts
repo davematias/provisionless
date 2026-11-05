@@ -22,6 +22,7 @@ export interface ProvisionlessConfig {
   apiCertificateArn?: string;
   jwtSecret?: string;
   emailFrom?: string;
+  alarmEmail?: string;
   logRetention?: number;
 }
 
@@ -258,6 +259,34 @@ export async function resolveAppPrefix(options: ResolveAppPrefixOptions): Promis
     options.log(`saved app prefix to ${CONFIG_FILE}`);
   }
   return answer;
+}
+
+export interface ResolveAlarmEmailOptions {
+  repoRoot: string;
+  alarmEmail?: string;
+  log: Logger;
+  persist: boolean;
+}
+
+/** Resolves the optional email address subscribed to the deployment's alarm topic. */
+export function resolveAlarmEmail(options: ResolveAlarmEmailOptions): string | undefined {
+  const existing = loadConfig(options.repoRoot);
+  const value = (options.alarmEmail ?? existing?.alarmEmail)?.trim();
+
+  if (!value) {
+    options.log(
+      "no alarm email configured: alarms will publish to the deployment topic without an email subscriber",
+    );
+    return undefined;
+  }
+  if (!isValidEmailAddress(value)) {
+    throw new Error(`Invalid alarm email "${value}". Use an email address.`);
+  }
+
+  if (options.alarmEmail !== undefined && options.persist) {
+    updateConfig(options.repoRoot, { alarmEmail: value });
+  }
+  return value;
 }
 
 export interface ResolveEmailFromOptions {

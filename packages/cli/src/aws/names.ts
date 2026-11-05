@@ -24,6 +24,11 @@ export interface AdminResourceNames {
   redirectFunction: string;
 }
 
+export interface ObservabilityNames {
+  /** SNS topic that receives deployment alarm notifications. */
+  topic: string;
+}
+
 function cloudFrontFunctionName(appPrefix: string): string {
   const desired = `${appPrefix}-admin-redirect`;
   if (desired.length <= 32) {
@@ -60,6 +65,10 @@ export function adminNames(appPrefix: string, accountId: string): AdminResourceN
     lambdaOac: `${appPrefix}-admin-lambda`,
     redirectFunction: cloudFrontFunctionName(appPrefix),
   };
+}
+
+export function observabilityNames(appPrefix: string): ObservabilityNames {
+  return { topic: `${appPrefix}-alarms` };
 }
 
 export function isValidAppPrefix(prefix: string): boolean {
