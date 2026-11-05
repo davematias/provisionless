@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { isValidEmailAddress } from "@provisionless/core";
 
+import { DEFAULT_LOG_RETENTION, validateLogRetention } from "../aws/logs.ts";
 import { isValidAppPrefix } from "../aws/names.ts";
 import type { Logger } from "../util/log.ts";
 import { confirm, type Ask } from "../util/prompt.ts";
@@ -21,6 +22,7 @@ export interface ProvisionlessConfig {
   apiCertificateArn?: string;
   jwtSecret?: string;
   emailFrom?: string;
+  logRetention?: number;
 }
 
 export function configPath(repoRoot: string): string {
@@ -68,6 +70,24 @@ export async function resolveRegion(options: ResolveRegionOptions): Promise<stri
     updateConfig(options.repoRoot, { region });
   }
   return region;
+}
+
+export interface ResolveLogRetentionOptions {
+  repoRoot: string;
+  retention?: number;
+  persist: boolean;
+}
+
+/** Resolves the Lambda log retention, defaulting to 30 days and persisting an explicit choice. */
+export function resolveLogRetention(options: ResolveLogRetentionOptions): number {
+  const existing = loadConfig(options.repoRoot);
+  const retention = validateLogRetention(
+    options.retention ?? existing?.logRetention ?? DEFAULT_LOG_RETENTION,
+  );
+  if (options.retention !== undefined && options.persist) {
+    updateConfig(options.repoRoot, { logRetention: retention });
+  }
+  return retention;
 }
 
 export function resolveJwtSecret(repoRoot: string, persist: boolean): string {

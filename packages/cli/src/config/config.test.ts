@@ -9,6 +9,7 @@ import {
   resolveAppPrefix,
   resolveDomains,
   resolveEmailFrom,
+  resolveLogRetention,
   resolveRegion,
   saveConfig,
 } from "./config.ts";
@@ -300,4 +301,44 @@ it("does not persist the SES sender during a dry run", () => {
   });
 
   expect(loadConfig(repo)?.emailFrom).toBeUndefined();
+});
+
+it("defaults log retention to 30 days", () => {
+  const repo = tempRepo();
+
+  expect(resolveLogRetention({ repoRoot: repo, persist: true })).toBe(30);
+  expect(loadConfig(repo)?.logRetention).toBeUndefined();
+});
+
+it("reuses a saved log retention period", () => {
+  const repo = tempRepo();
+  saveConfig(repo, { appPrefix: "demo", logRetention: 14 });
+
+  expect(resolveLogRetention({ repoRoot: repo, persist: true })).toBe(14);
+});
+
+it("persists an explicit log retention period", () => {
+  const repo = tempRepo();
+
+  expect(resolveLogRetention({ repoRoot: repo, retention: 7, persist: true })).toBe(7);
+  expect(loadConfig(repo)?.logRetention).toBe(7);
+});
+
+it("does not persist log retention during a dry run", () => {
+  const repo = tempRepo();
+
+  resolveLogRetention({ repoRoot: repo, retention: 7, persist: false });
+
+  expect(loadConfig(repo)?.logRetention).toBeUndefined();
+});
+
+it("rejects unsupported log retention periods", () => {
+  const repo = tempRepo();
+
+  expect(() => resolveLogRetention({ repoRoot: repo, retention: 0, persist: true })).toThrow(
+    /at least 1/,
+  );
+  expect(() => resolveLogRetention({ repoRoot: repo, retention: 2, persist: true })).toThrow(
+    /must be one of/,
+  );
 });

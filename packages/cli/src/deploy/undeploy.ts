@@ -44,6 +44,7 @@ import { GetCallerIdentityCommand } from "@aws-sdk/client-sts";
 import { createAwsClients } from "../aws/clients.ts";
 import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames, apiNames } from "../aws/names.ts";
+import { deleteLogGroup } from "../aws/logs.ts";
 import {
   deleteRecords,
   listDomainRecords,
@@ -464,6 +465,10 @@ export async function teardown(ctx: DeployContext, keepData: boolean): Promise<v
   await deleteLambda(ctx, names.imageFunction);
   await deleteLambda(ctx, names.serverFunction);
   await deleteLambda(ctx, api.function);
+  await deleteLogGroup(ctx, api.function);
+  await deleteLogGroup(ctx, names.serverFunction);
+  await deleteLogGroup(ctx, names.imageFunction);
+  await deleteLogGroup(ctx, names.revalidationFunction);
   await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
   await deleteQueue(ctx, names.revalidationQueue);

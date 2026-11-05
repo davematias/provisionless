@@ -33,6 +33,8 @@ Options:
   without it the CLI prints the records to add yourself.
 - `--no-domains` — skip custom-domain configuration entirely and deploy without domains; useful for
   non-interactive runs (scripts and CI) when you do not want custom domains.
+- `--log-retention <days>` — days to keep Lambda logs (default `30`; saved in `.provisionless`).
+  CloudWatch Logs only accepts specific values such as 1, 7, 14, 30, 60, 90, 180, and 365.
 - `--test-user-username <username>` / `--test-user-password <password>` /
   `--test-user-email <email>` — supply the test user's credentials and email address
   non-interactively (prompted when omitted).

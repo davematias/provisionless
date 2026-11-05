@@ -19,6 +19,10 @@ export function registerDeployCommand(program: Command): void {
     .option("--api-domain <domain>", "Custom domain for the API (prompted when omitted)")
     .option("--hosted-zone <id-or-name>", "Route 53 hosted zone for automatic DNS records")
     .option("--no-domains", "Skip custom domain configuration and deploy without domains")
+    .option(
+      "--log-retention <days>",
+      "Days to retain Lambda logs (default: 30; saved in .provisionless)",
+    )
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--test-user-email <email>", "Test user email (prompted when omitted)")
@@ -37,6 +41,7 @@ export function registerDeployCommand(program: Command): void {
         testUserUsername?: string;
         testUserPassword?: string;
         testUserEmail?: string;
+        logRetention?: string;
         dryRun: boolean;
       }) => {
         await deploy({
@@ -51,6 +56,8 @@ export function registerDeployCommand(program: Command): void {
           testUserUsername: options.testUserUsername,
           testUserPassword: options.testUserPassword,
           testUserEmail: options.testUserEmail,
+          logRetention:
+            options.logRetention === undefined ? undefined : Number(options.logRetention),
           dryRun: options.dryRun,
         });
       },

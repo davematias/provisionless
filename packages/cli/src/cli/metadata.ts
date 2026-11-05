@@ -19,6 +19,7 @@ export const COMMAND_HELP = {
       "provisionless deploy --email-from no-reply@example.com",
       "provisionless deploy --admin-domain admin.example.com --api-domain api.example.com --hosted-zone Z0123456789",
       "provisionless deploy --no-domains",
+      "provisionless deploy --log-retention 14",
       "provisionless deploy --dry-run",
     ],
     prerequisites: [
@@ -32,6 +33,7 @@ export const COMMAND_HELP = {
       "Email: an SES sending identity for the configured --email-from address, with send permission on the API role",
       "Admin: S3 assets bucket, DynamoDB tag cache, FIFO SQS queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
       "Media: an S3 media bucket",
+      "Logs: a CloudWatch log group for every Lambda function, with the configured retention period",
       "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set; the admin domain is aliased to the CloudFront distribution (with an apex/www redirect) and the API domain to an API Gateway custom domain, each with alias DNS records when a hosted zone is set",
     ],
   },
@@ -53,6 +55,7 @@ export const COMMAND_HELP = {
       "Admin: CloudFront distribution, Lambdas, Function URLs, SQS queue, OACs, IAM role, tag cache and assets bucket (unless keeping data)",
       "Media: the S3 media bucket (unless keeping data)",
       "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
+      "Logs: the CloudWatch log groups for the deployment's Lambda functions",
     ],
   },
   list: {

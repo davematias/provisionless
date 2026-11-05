@@ -38,6 +38,7 @@ import {
 } from "@aws-sdk/client-sqs";
 
 import { resolveAdminArtifact } from "../artifacts/resolve.ts";
+import { DEFAULT_LOG_RETENTION, ensureLogGroup } from "../aws/logs.ts";
 import {
   addInvokePermission,
   deployFunction,
@@ -783,6 +784,10 @@ export async function deployAdmin(ctx: DeployContext, apiUrl: string): Promise<A
     memorySize: 1024,
     timeout: 30,
   });
+  const logRetention = ctx.logRetention ?? DEFAULT_LOG_RETENTION;
+  await ensureLogGroup(ctx, serverName, logRetention);
+  await ensureLogGroup(ctx, imageName, logRetention);
+  await ensureLogGroup(ctx, revalidationName, logRetention);
 
   const serverUrl = await ensureFunctionUrl(ctx, serverName);
   const imageUrl = await ensureFunctionUrl(ctx, imageName);

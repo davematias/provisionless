@@ -42,6 +42,11 @@ it("parses resource kinds and names from ARNs", () => {
       tagged("arn:aws:ses:eu-west-1:111122223333:identity/no-reply@example.com", "eu-west-1"),
     ),
   ).toMatchObject({ service: "ses", kind: "identity", name: "no-reply@example.com" });
+  expect(
+    parseTaggedResource(
+      tagged("arn:aws:logs:eu-west-1:111122223333:log-group:/aws/lambda/demo-api", "eu-west-1"),
+    ),
+  ).toMatchObject({ service: "logs", kind: "log-group", name: "/aws/lambda/demo-api" });
 });
 
 it("groups resources by prefix and attaches global resources", () => {

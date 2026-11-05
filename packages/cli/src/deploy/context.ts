@@ -18,6 +18,8 @@ export interface DeployContext {
   adminCertificateIssued?: boolean;
   apiCertificateArn?: string;
   apiCertificateIssued?: boolean;
+  /** Days Lambda logs are retained; defaults to 30. */
+  logRetention?: number;
   log: Logger;
   clients: AwsClients;
 }
@@ -32,6 +34,7 @@ export interface DeployOptions {
   apiDomain?: string;
   hostedZone?: string;
   noDomains?: boolean;
+  logRetention?: number;
   testUserUsername?: string;
   testUserPassword?: string;
   testUserEmail?: string;

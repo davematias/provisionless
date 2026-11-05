@@ -21,6 +21,7 @@ import {
   TagResourceCommand as LambdaTagResourceCommand,
 } from "@aws-sdk/client-lambda";
 import { GetRoleCommand } from "@aws-sdk/client-iam";
+import { CreateLogGroupCommand, PutRetentionPolicyCommand } from "@aws-sdk/client-cloudwatch-logs";
 import {
   CreateTableCommand,
   DescribeTableCommand,
@@ -81,6 +82,7 @@ function createContext(
     clients: {
       cloudfront: { send },
       route53: { send },
+      logs: { send },
     } as unknown as AwsClients,
   };
 }
@@ -392,6 +394,7 @@ function createFullContext(
       dynamodb: { send },
       cloudfront: { send },
       route53: { send },
+      logs: { send },
     } as unknown as AwsClients,
   };
 }
@@ -502,6 +505,19 @@ it("creates the distribution with aliases, certificate, and redirect in a full r
   for (const tag of lambdaTags) {
     expect(tag.input.Tags).toEqual(deploymentTags("demo"));
   }
+
+  const logGroups = commands.filter(
+    (command): command is CreateLogGroupCommand => command instanceof CreateLogGroupCommand,
+  );
+  expect(logGroups.map((command) => command.input.logGroupName)).toEqual([
+    "/aws/lambda/demo-admin-server",
+    "/aws/lambda/demo-admin-image",
+    "/aws/lambda/demo-admin-revalidation",
+  ]);
+  const retentions = commands.filter(
+    (command): command is PutRetentionPolicyCommand => command instanceof PutRetentionPolicyCommand,
+  );
+  expect(retentions.map((command) => command.input.retentionInDays)).toEqual([30, 30, 30]);
 
   const ctxLogs = logs;
   expect(

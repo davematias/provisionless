@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 
+import { DeleteLogGroupCommand } from "@aws-sdk/client-cloudwatch-logs";
 import type { AwsClients } from "../aws/clients.ts";
 import type { DeployContext } from "./context.ts";
 import { teardown } from "./undeploy.ts";
@@ -13,6 +14,7 @@ function createContext(send: (command: unknown) => Promise<unknown>): DeployCont
       }),
     },
     lambda: { send },
+    logs: { send },
     apiGateway: { send: async () => ({ Items: [] }) },
     sqs: {
       send: async () => {
@@ -65,6 +67,8 @@ it("reports that existing Lambdas would be deleted in a dry run", async () => {
 
   expect(messages).toContain("would delete Lambda demo-admin-revalidation");
   expect(messages).toContain("would delete Lambda demo-api");
+  expect(messages).toContain("would delete log group /aws/lambda/demo-api");
+  expect(messages).toContain("would delete log group /aws/lambda/demo-admin-server");
 });
 
 it("keeps data when asked", async () => {
@@ -186,6 +190,7 @@ function createTeardownContext(
         return awsError("ResourceNotFoundException");
       },
     },
+    logs: { send },
     apiGateway: { send },
     sqs: {
       send: async (command: unknown) => {
@@ -328,4 +333,16 @@ it("deletes the users and reset token tables when the data is removed", async ()
   expect(deleted).toContain("demo-reset-tokens");
   expect(deleted).toContain("demo-content-types");
   expect(deleted).toContain("demo-content-entries");
+  const logGroups = records
+    .filter(
+      (command): command is { input: { logGroupName?: string } } =>
+        command instanceof DeleteLogGroupCommand,
+    )
+    .map((command) => command.input.logGroupName);
+  expect(logGroups).toEqual([
+    "/aws/lambda/demo-api",
+    "/aws/lambda/demo-admin-server",
+    "/aws/lambda/demo-admin-image",
+    "/aws/lambda/demo-admin-revalidation",
+  ]);
 });
