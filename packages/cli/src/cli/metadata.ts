@@ -22,10 +22,12 @@ export const COMMAND_HELP = {
       "provisionless deploy --no-domains",
       "provisionless deploy --log-retention 14",
       "provisionless deploy --api-log-level warn",
+      "provisionless deploy --preflight --dry-run",
       "provisionless deploy --dry-run",
     ],
     prerequisites: [
       "AWS credentials allowed to manage IAM, Lambda, API Gateway, S3, DynamoDB, SQS, SNS, CloudWatch, CloudFront, ACM, Route 53, and SES",
+      "For --preflight, permission to call iam:SimulatePrincipalPolicy (and iam:GetRole for assumed-role sessions)",
       "Run from inside the Provisionless repository",
       "For custom domains, a Route 53 hosted zone (to create DNS records automatically) or the ability to add DNS records yourself",
       "For password reset emails, a verified SES sending address (the deploy CLI creates the identity and prints verification guidance)",

@@ -34,6 +34,11 @@ export function registerDeployCommand(program: Command): void {
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--test-user-email <email>", "Test user email (prompted when omitted)")
+    .option(
+      "--preflight",
+      "Check the caller's IAM permissions with IAM policy simulation before provisioning",
+      false,
+    )
     .option("--dry-run", "Report what would be created or updated without modifying AWS", false)
     .addHelpText("after", formatCommandHelp(COMMAND_HELP.deploy))
     .action(
@@ -52,6 +57,7 @@ export function registerDeployCommand(program: Command): void {
         testUserEmail?: string;
         logRetention?: string;
         apiLogLevel?: string;
+        preflight: boolean;
         dryRun: boolean;
       }) => {
         await deploy({
@@ -70,6 +76,7 @@ export function registerDeployCommand(program: Command): void {
           logRetention:
             options.logRetention === undefined ? undefined : Number(options.logRetention),
           apiLogLevel: options.apiLogLevel,
+          preflight: options.preflight,
           dryRun: options.dryRun,
         });
       },

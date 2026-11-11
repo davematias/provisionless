@@ -193,3 +193,24 @@ and `cloudwatch:DeleteDashboards`. Dead-letter setup additionally needs `sqs:Get
 `sqs:SetQueueAttributes`; teardown needs `sqs:DeleteQueue`. API access logs need
 `logs:PutResourcePolicy`, `logs:DescribeResourcePolicies`, and `apigateway:PATCH` for `UpdateStage`
 (the log group create, retention, tag, and delete actions are listed above).
+
+## Permission preflight
+
+`provisionless deploy --preflight` checks the caller's IAM permissions before provisioning. It
+resolves the caller with STS, maps assumed-role sessions back to their IAM role with `iam:GetRole`, and
+calls `iam:SimulatePrincipalPolicy` with the deploy action inventory. Denied actions are grouped by
+service with the evaluated resource, and the command exits non-zero before creating or changing
+anything. With `--dry-run`, preflight performs only the check.
+
+```
+provisionless deploy --preflight
+provisionless deploy --preflight --dry-run
+```
+
+The check needs `iam:SimulatePrincipalPolicy`, plus `iam:GetRole` for assumed-role sessions. It cannot
+simulate the account root user or federated users.
+
+The result is advisory: it evaluates identity policies and SCPs, but not resource-based policies,
+service quotas, region opt-in, SES sandbox status, or permissions for resource IDs that do not exist
+yet. Some resource ARNs therefore use wildcards. For least privilege, run Provisionless under a
+dedicated IAM user or role rather than an administrator or the root user.
