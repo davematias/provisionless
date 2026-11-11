@@ -147,6 +147,13 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       ],
       queueName: adminResources.revalidationQueue,
       deadLetterQueueName: adminResources.revalidationDlq,
+      tableNames: [
+        api.usersTable,
+        api.resetTokensTable,
+        api.contentTypesTable,
+        api.contentEntriesTable,
+        adminResources.tagCacheTable,
+      ],
     });
 
     log(`API URL:   ${apiUrl}`);

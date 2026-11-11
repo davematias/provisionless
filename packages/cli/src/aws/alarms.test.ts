@@ -1,6 +1,8 @@
 import {
   DeleteAlarmsCommand,
+  DeleteDashboardsCommand,
   DescribeAlarmsCommand,
+  PutDashboardCommand,
   PutMetricAlarmCommand,
 } from "@aws-sdk/client-cloudwatch";
 import {
@@ -19,8 +21,11 @@ import {
   REVALIDATION_QUEUE_AGE_SECONDS,
   alarmTopicArn,
   buildAlarmDefinitions,
+  buildDashboardBody,
+  dashboardUrl,
   deleteObservability,
   ensureAlarms,
+  ensureDashboard,
   ensureNotificationTopic,
   type ObservabilityTargets,
 } from "./alarms.ts";
@@ -39,6 +44,13 @@ const TARGETS: ObservabilityTargets = {
   ],
   queueName: "demo-admin-revalidation.fifo",
   deadLetterQueueName: "demo-admin-revalidation-dlq.fifo",
+  tableNames: [
+    "demo-users",
+    "demo-reset-tokens",
+    "demo-content-types",
+    "demo-content-entries",
+    "demo-admin-tag-cache",
+  ],
 };
 
 function createContext(
@@ -262,6 +274,103 @@ it("does not touch AWS when creating alarms during a dry run", async () => {
   expect(commands).toEqual([]);
 });
 
+it("builds a dashboard with API, Lambda, queue, and DynamoDB metrics", () => {
+  const ctx = createContext(async () => ({}));
+  const body = buildDashboardBody(ctx, TARGETS);
+  const titles = body.widgets.map((widget) => widget.properties.title);
+
+  expect(titles).toEqual([
+    "API requests and errors",
+    "API latency",
+    "Lambda invocations and errors",
+    "Lambda duration",
+    "Lambda throttles",
+    "Revalidation queue",
+    "DynamoDB throttles",
+  ]);
+  const api = body.widgets[0];
+  expect(api?.properties.metrics).toHaveLength(3);
+  expect(api?.properties.metrics[0]).toEqual([
+    "AWS/ApiGateway",
+    "Count",
+    "ApiId",
+    "api123",
+    { stat: "Sum", label: "Requests" },
+  ]);
+  const lambdaErrors = body.widgets[2];
+  expect(lambdaErrors?.properties.metrics).toHaveLength(8);
+  const queue = body.widgets[5];
+  expect(queue?.properties.metrics).toHaveLength(2);
+  expect(queue?.properties.metrics[1]).toEqual([
+    "AWS/SQS",
+    "ApproximateNumberOfMessagesVisible",
+    "QueueName",
+    TARGETS.deadLetterQueueName,
+    { stat: "Maximum", label: "Dead-letter depth" },
+  ]);
+  const dynamo = body.widgets[6];
+  expect(dynamo?.properties.metrics).toHaveLength(5);
+  for (const widget of body.widgets) {
+    expect(widget.properties.region).toBe("eu-west-1");
+    expect(widget.properties.period).toBe(ALARM_PERIOD_SECONDS);
+  }
+});
+
+it("creates or replaces the dashboard with deployment tags", async () => {
+  const { commands, send } = capture(async () => ({}));
+  const logs: string[] = [];
+  const ctx = createContext(send);
+  ctx.log = (message: string) => logs.push(message);
+
+  await ensureDashboard(ctx, TARGETS);
+
+  const put = commands.find(
+    (command): command is PutDashboardCommand => command instanceof PutDashboardCommand,
+  );
+  expect(put?.input.DashboardName).toBe("demo-dashboard");
+  expect(JSON.parse(put?.input.DashboardBody ?? "{}")).toEqual(buildDashboardBody(ctx, TARGETS));
+  expect(put?.input.Tags).toEqual(deploymentTagList("demo"));
+  expect(logs).toContain(`dashboard: ${dashboardUrl(ctx)}`);
+});
+
+it("replaces the dashboard on redeploy without creating duplicates", async () => {
+  const { commands, send } = capture(async () => ({}));
+  const ctx = createContext(send);
+
+  await ensureDashboard(ctx, TARGETS);
+  await ensureDashboard(ctx, TARGETS);
+
+  const names = commands
+    .filter((command): command is PutDashboardCommand => command instanceof PutDashboardCommand)
+    .map((command) => command.input.DashboardName);
+  expect(names).toEqual(["demo-dashboard", "demo-dashboard"]);
+});
+
+it("surfaces dashboard validation messages", async () => {
+  const ctx = createContext(async (command) => {
+    if (command instanceof PutDashboardCommand) {
+      return { DashboardValidationMessages: [{ Message: "bad widget" }] };
+    }
+    return {};
+  });
+
+  await expect(ensureDashboard(ctx, TARGETS)).rejects.toThrow(
+    "CloudWatch rejected dashboard demo-dashboard: bad widget",
+  );
+});
+
+it("does not touch AWS when creating the dashboard during a dry run", async () => {
+  const commands: unknown[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    return {};
+  }, true);
+
+  await ensureDashboard(ctx, TARGETS);
+
+  expect(commands).toEqual([]);
+});
+
 it("deletes only the deployment alarms and its topic", async () => {
   const { commands, send } = capture(async (command) => {
     if (command instanceof DescribeAlarmsCommand) {
@@ -283,6 +392,10 @@ it("deletes only the deployment alarms and its topic", async () => {
     | DeleteTopicCommand
     | undefined;
   expect(topicDelete?.input.TopicArn).toBe(alarmTopicArn(ctx));
+  const dashboardDelete = commands.find((command) => command instanceof DeleteDashboardsCommand) as
+    | DeleteDashboardsCommand
+    | undefined;
+  expect(dashboardDelete?.input.DashboardNames).toEqual(["demo-dashboard"]);
 });
 
 it("paginates alarm cleanup", async () => {

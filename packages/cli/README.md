@@ -212,6 +212,11 @@ Every alarm costs a small monthly charge, and the log-ingestion alarm is a guard
 budget. For cross-service spend protection, create an AWS Budget with an alert in `us-east-1` (Budgets
 is a global service); it covers services this CLI does not provision.
 
+Deploy also creates or replaces a CloudWatch dashboard named `<prefix>-dashboard` with API requests,
+4xx/5xx counts and latency; Lambda invocations, errors, duration, and throttles; revalidation queue
+age and dead-letter depth; and DynamoDB throttles. The console URL is printed after deploy.
+Redeploying replaces the dashboard contents without creating a duplicate, and `undeploy` deletes it.
+
 `deploy` builds the API bundle and the admin website (with
 [OpenNext](https://opennext.js.org/aws)) when it runs from a source checkout; outside a checkout it
 downloads the prebuilt artifacts for its version instead. Either way it provisions:
@@ -221,8 +226,9 @@ downloads the prebuilt artifacts for its version instead. Either way it provisio
 - **Admin** — an S3 bucket (static assets and incremental cache), a DynamoDB tag cache, a FIFO
   revalidation queue with a FIFO dead-letter queue, three Lambda functions (SSR, image optimization,
   and revalidation), and a CloudFront distribution in front of the Lambda and S3 origins.
-- **Alarms** — an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors
-  and throttles, revalidation queue age and dead-letter depth, and daily log ingestion.
+- **Alarms** — an SNS notification topic, CloudWatch alarms for API 5xx responses, Lambda errors and
+  throttles, revalidation queue age and dead-letter depth, and daily log ingestion, plus a
+  per-deployment CloudWatch dashboard.
 
 It uses the standard AWS credential chain. The caller must be allowed to manage IAM, Lambda,
 API Gateway, S3, DynamoDB, SQS, SNS, CloudWatch, and CloudFront. Running it again updates the

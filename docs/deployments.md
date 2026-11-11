@@ -29,7 +29,7 @@ onto the same schema without being recreated.
 | ACM         | Admin and API certificates, including reused certificates                |
 | SES         | Verified sender identity                                                 |
 | SNS         | Alarm notification topic                                                 |
-| CloudWatch  | Lambda log groups and alarms                                             |
+| CloudWatch  | Lambda log groups, alarms, and dashboard                                 |
 
 ## Resources AWS does not allow tagging
 
@@ -101,6 +101,20 @@ CloudWatch alarms incur a small monthly charge. For spend protection beyond thes
 AWS Budget with an alert in `us-east-1`, since Budgets is a global service and can cover services the
 CLI does not provision.
 
+### Dashboard
+
+`deploy` creates or replaces a CloudWatch dashboard named `<prefix>-dashboard` and prints its console
+URL. It shows:
+
+- API Gateway requests, 4xx and 5xx counts, and latency.
+- Lambda invocations, errors, duration, and throttles for all four functions.
+- Revalidation queue age and dead-letter depth.
+- DynamoDB throttled requests for the users, reset-tokens, content-types, content-entries, and tag
+  cache tables.
+
+The dashboard is tagged with the deployment tags. Redeploying replaces its contents in place, so the
+dashboard is not duplicated, and `undeploy` deletes it without touching other prefixes.
+
 ## Discovering deployments
 
 Two read-only commands use the tags to find and inspect deployments without a local `.provisionless`
@@ -162,5 +176,6 @@ create/read permissions:
 Alarm management additionally needs `sns:CreateTopic`, `sns:Subscribe`,
 `sns:ListSubscriptionsByTopic`, `sns:DeleteTopic`, `cloudwatch:PutMetricAlarm`,
 `cloudwatch:DescribeAlarms`, and `cloudwatch:DeleteAlarms`. `cloudwatch:PutMetricAlarm` with tags also
-requires `cloudwatch:TagResource`. Dead-letter setup additionally needs `sqs:GetQueueAttributes` and
+requires `cloudwatch:TagResource`. Dashboard management additionally needs `cloudwatch:PutDashboard`
+and `cloudwatch:DeleteDashboards`. Dead-letter setup additionally needs `sqs:GetQueueAttributes` and
 `sqs:SetQueueAttributes`; teardown needs `sqs:DeleteQueue`.

@@ -28,6 +28,8 @@ export interface AdminResourceNames {
 export interface ObservabilityNames {
   /** SNS topic that receives deployment alarm notifications. */
   topic: string;
+  /** CloudWatch dashboard that summarizes the deployment. */
+  dashboard: string;
 }
 
 function cloudFrontFunctionName(appPrefix: string): string {
@@ -70,7 +72,7 @@ export function adminNames(appPrefix: string, accountId: string): AdminResourceN
 }
 
 export function observabilityNames(appPrefix: string): ObservabilityNames {
-  return { topic: `${appPrefix}-alarms` };
+  return { topic: `${appPrefix}-alarms`, dashboard: `${appPrefix}-dashboard` };
 }
 
 export function isValidAppPrefix(prefix: string): boolean {

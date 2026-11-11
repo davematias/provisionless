@@ -1,7 +1,11 @@
 import { expect, it } from "vitest";
 
 import { DeleteLogGroupCommand } from "@aws-sdk/client-cloudwatch-logs";
-import { DeleteAlarmsCommand, DescribeAlarmsCommand } from "@aws-sdk/client-cloudwatch";
+import {
+  DeleteAlarmsCommand,
+  DeleteDashboardsCommand,
+  DescribeAlarmsCommand,
+} from "@aws-sdk/client-cloudwatch";
 import { DeleteTopicCommand } from "@aws-sdk/client-sns";
 import { DeleteQueueCommand, GetQueueUrlCommand } from "@aws-sdk/client-sqs";
 import type { AwsClients } from "../aws/clients.ts";
@@ -422,6 +426,11 @@ it("deletes the deployment alarms and alarm topic on a real teardown", async () 
     | undefined;
   expect(deleted?.input.AlarmNames).toEqual(["demo-api-5xx"]);
   expect(records.some((command) => command instanceof DeleteTopicCommand)).toBe(true);
+  const dashboardDelete = records.find((command) => command instanceof DeleteDashboardsCommand) as
+    | DeleteDashboardsCommand
+    | undefined;
+  expect(dashboardDelete?.input.DashboardNames).toEqual(["demo-dashboard"]);
   expect(logs).toContain("deleted 1 CloudWatch alarms");
   expect(logs).toContain("deleted SNS topic demo-alarms");
+  expect(logs).toContain("deleted CloudWatch dashboard demo-dashboard");
 });
