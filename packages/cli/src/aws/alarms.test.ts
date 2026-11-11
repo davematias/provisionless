@@ -333,6 +333,19 @@ it("creates or replaces the dashboard with deployment tags", async () => {
   expect(logs).toContain(`dashboard: ${dashboardUrl(ctx)}`);
 });
 
+it("replaces the dashboard on redeploy without creating duplicates", async () => {
+  const { commands, send } = capture(async () => ({}));
+  const ctx = createContext(send);
+
+  await ensureDashboard(ctx, TARGETS);
+  await ensureDashboard(ctx, TARGETS);
+
+  const names = commands
+    .filter((command): command is PutDashboardCommand => command instanceof PutDashboardCommand)
+    .map((command) => command.input.DashboardName);
+  expect(names).toEqual(["demo-dashboard", "demo-dashboard"]);
+});
+
 it("surfaces dashboard validation messages", async () => {
   const ctx = createContext(async (command) => {
     if (command instanceof PutDashboardCommand) {
