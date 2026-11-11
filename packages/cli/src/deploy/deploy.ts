@@ -5,6 +5,7 @@ import { createAwsClients } from "../aws/clients.ts";
 import { adminNames, apiNames } from "../aws/names.ts";
 import {
   resolveAlarmEmail,
+  resolveApiLogLevel,
   resolveAppPrefix,
   resolveDomains,
   resolveEmailFrom,
@@ -79,6 +80,11 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       log,
       persist: !options.dryRun,
     });
+    const apiLogLevel = resolveApiLogLevel({
+      repoRoot,
+      logLevel: options.apiLogLevel,
+      persist: !options.dryRun,
+    });
 
     const domains = await resolveDomains({
       repoRoot,
@@ -110,6 +116,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       mediaBucket,
       emailFrom,
       alarmEmail,
+      apiLogLevel,
       adminDomain: domains.adminDomain,
       apiDomain: domains.apiDomain,
       hostedZone: domains.hostedZone,

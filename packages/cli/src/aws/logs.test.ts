@@ -1,6 +1,8 @@
 import {
   CreateLogGroupCommand,
   DeleteLogGroupCommand,
+  DescribeResourcePoliciesCommand,
+  PutResourcePolicyCommand,
   PutRetentionPolicyCommand,
   TagResourceCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
@@ -8,7 +10,11 @@ import { expect, it } from "vitest";
 
 import type { AwsClients } from "./clients.ts";
 import {
+  API_GATEWAY_ACCESS_LOG_FORMAT,
+  DEFAULT_ACCESS_LOG_RETENTION,
   deleteLogGroup,
+  deleteLogGroupNamed,
+  ensureApiGatewayAccessLogs,
   ensureLogGroup,
   lambdaLogGroupName,
   validateLogRetention,
@@ -121,4 +127,139 @@ it("does not touch CloudWatch during a dry run", async () => {
   await deleteLogGroup(ctx, "demo-api");
 
   expect(commands).toEqual([]);
+});
+
+it("creates the API access log group and resource policy", async () => {
+  const commands: unknown[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeResourcePoliciesCommand) {
+      return { resourcePolicies: [] };
+    }
+    return {};
+  });
+
+  const result = await ensureApiGatewayAccessLogs(ctx, "/aws/apigateway/demo-api/access", "api123");
+
+  expect(result).toEqual({
+    destinationArn: "arn:aws:logs:eu-west-1:111122223333:log-group:/aws/apigateway/demo-api/access",
+    format: API_GATEWAY_ACCESS_LOG_FORMAT,
+  });
+  const create = commands.find(
+    (command): command is CreateLogGroupCommand => command instanceof CreateLogGroupCommand,
+  );
+  expect(create?.input.logGroupName).toBe("/aws/apigateway/demo-api/access");
+  const retention = commands.find(
+    (command): command is PutRetentionPolicyCommand => command instanceof PutRetentionPolicyCommand,
+  );
+  expect(retention?.input.retentionInDays).toBe(DEFAULT_ACCESS_LOG_RETENTION);
+  expect(DEFAULT_ACCESS_LOG_RETENTION).toBe(14);
+
+  const put = commands.find(
+    (command): command is PutResourcePolicyCommand => command instanceof PutResourcePolicyCommand,
+  );
+  expect(put?.input.policyName).toBe("demo-api-access");
+  expect(put?.input.resourceArn).toBe(
+    "arn:aws:logs:eu-west-1:111122223333:log-group:/aws/apigateway/demo-api/access",
+  );
+  expect(put?.input.expectedRevisionId).toBeNull();
+  const policy = JSON.parse(put?.input.policyDocument ?? "{}") as {
+    Statement?: Array<Record<string, unknown>>;
+  };
+  expect(policy.Statement?.[0]).toMatchObject({
+    Effect: "Allow",
+    Principal: { Service: "apigateway.amazonaws.com" },
+    Action: ["logs:CreateLogStream", "logs:PutLogEvents"],
+    Resource: "arn:aws:logs:eu-west-1:111122223333:log-group:/aws/apigateway/demo-api/access:*",
+    Condition: {
+      ArnLike: {
+        "aws:SourceArn": "arn:aws:execute-api:eu-west-1:111122223333:api123/*",
+      },
+      StringEquals: { "aws:SourceAccount": "111122223333" },
+    },
+  });
+});
+
+it("reuses a matching access log resource policy on redeploy", async () => {
+  const commands: unknown[] = [];
+  let policyDocument = "";
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeResourcePoliciesCommand) {
+      return policyDocument
+        ? {
+            resourcePolicies: [
+              { policyName: "demo-api-access", policyDocument, revisionId: "rev1" },
+            ],
+          }
+        : { resourcePolicies: [] };
+    }
+    if (command instanceof PutResourcePolicyCommand) {
+      policyDocument = command.input.policyDocument ?? "";
+    }
+    return {};
+  });
+
+  await ensureApiGatewayAccessLogs(ctx, "/aws/apigateway/demo-api/access", "api123");
+  await ensureApiGatewayAccessLogs(ctx, "/aws/apigateway/demo-api/access", "api123");
+
+  const puts = commands.filter(
+    (command): command is PutResourcePolicyCommand => command instanceof PutResourcePolicyCommand,
+  );
+  expect(puts).toHaveLength(1);
+});
+
+it("updates a changed access log resource policy with its revision", async () => {
+  const commands: unknown[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    if (command instanceof DescribeResourcePoliciesCommand) {
+      return {
+        resourcePolicies: [
+          { policyName: "demo-api-access", policyDocument: "old", revisionId: "rev1" },
+        ],
+      };
+    }
+    return {};
+  });
+
+  await ensureApiGatewayAccessLogs(ctx, "/aws/apigateway/demo-api/access", "api123");
+
+  const put = commands.find(
+    (command): command is PutResourcePolicyCommand => command instanceof PutResourcePolicyCommand,
+  );
+  expect(put?.input.expectedRevisionId).toBe("rev1");
+});
+
+it("does not touch CloudWatch for access logs during a dry run", async () => {
+  const commands: unknown[] = [];
+  const logs: string[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    return {};
+  }, true);
+  ctx.log = (message: string) => logs.push(message);
+
+  const result = await ensureApiGatewayAccessLogs(ctx, "/aws/apigateway/demo-api/access", "api123");
+
+  expect(commands).toEqual([]);
+  expect(result.format).toBe(API_GATEWAY_ACCESS_LOG_FORMAT);
+  expect(logs).toContain(
+    "would create log group /aws/apigateway/demo-api/access with 14-day retention and enable API Gateway access logs",
+  );
+});
+
+it("deletes a named access log group", async () => {
+  const commands: unknown[] = [];
+  const ctx = createContext(async (command) => {
+    commands.push(command);
+    return {};
+  });
+
+  await deleteLogGroupNamed(ctx, "/aws/apigateway/demo-api/access");
+
+  expect(commands[0]).toBeInstanceOf(DeleteLogGroupCommand);
+  expect((commands[0] as DeleteLogGroupCommand).input.logGroupName).toBe(
+    "/aws/apigateway/demo-api/access",
+  );
 });

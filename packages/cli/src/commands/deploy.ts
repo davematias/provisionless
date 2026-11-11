@@ -27,6 +27,10 @@ export function registerDeployCommand(program: Command): void {
       "--log-retention <days>",
       "Days to retain Lambda logs (default: 30; saved in .provisionless)",
     )
+    .option(
+      "--api-log-level <level>",
+      "API request log level: debug, info, warn, error, or silent (default: info)",
+    )
     .option("--test-user-username <username>", "Test user username (prompted when omitted)")
     .option("--test-user-password <password>", "Test user password (prompted when omitted)")
     .option("--test-user-email <email>", "Test user email (prompted when omitted)")
@@ -47,6 +51,7 @@ export function registerDeployCommand(program: Command): void {
         testUserPassword?: string;
         testUserEmail?: string;
         logRetention?: string;
+        apiLogLevel?: string;
         dryRun: boolean;
       }) => {
         await deploy({
@@ -64,6 +69,7 @@ export function registerDeployCommand(program: Command): void {
           testUserEmail: options.testUserEmail,
           logRetention:
             options.logRetention === undefined ? undefined : Number(options.logRetention),
+          apiLogLevel: options.apiLogLevel,
           dryRun: options.dryRun,
         });
       },

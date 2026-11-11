@@ -9,6 +9,7 @@ import { handle } from "hono/aws-lambda";
 import { createApp, parseAllowOrigins, parseCookieSameSite } from "./app.ts";
 import { DEFAULT_ADMIN_BASE_URL } from "./auth/reset-link.ts";
 import { createEmailProviderFromEnv, createResetEmailDelivery } from "./email/provider.ts";
+import { parseLogLevel } from "./logging.ts";
 
 const emailProvider = createEmailProviderFromEnv({ env: process.env });
 const adminBaseUrl = process.env.ADMIN_BASE_URL ?? DEFAULT_ADMIN_BASE_URL;
@@ -33,6 +34,7 @@ const app = createApp({
   secureCookies: process.env.AUTH_COOKIE_SECURE !== "false",
   cookieSameSite: parseCookieSameSite(process.env.AUTH_COOKIE_SAMESITE),
   corsAllowOrigins: parseAllowOrigins(process.env.AUTH_ALLOW_ORIGINS),
+  logLevel: parseLogLevel(process.env.LOG_LEVEL, process.env.NODE_ENV),
 });
 
 export const handler = handle(app);

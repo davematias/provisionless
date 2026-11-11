@@ -29,7 +29,7 @@ onto the same schema without being recreated.
 | ACM         | Admin and API certificates, including reused certificates                |
 | SES         | Verified sender identity                                                 |
 | SNS         | Alarm notification topic                                                 |
-| CloudWatch  | Lambda log groups, alarms, and dashboard                                 |
+| CloudWatch  | Lambda and API Gateway access log groups, alarms, and dashboard          |
 
 ## Resources AWS does not allow tagging
 
@@ -47,7 +47,7 @@ and relationship, and discovery reaches them through their tagged parent.
 - **CloudFront managed cache and origin request policies** — AWS-managed policy IDs, not created by
   `deploy`.
 
-## Lambda log retention
+## Log retention and request logs
 
 `deploy` creates the `/aws/lambda/<function>` log group for every Lambda it provisions and applies a
 retention period. The default is 30 days; set `--log-retention <days>` on deploy to choose another
@@ -56,9 +56,21 @@ accepts specific retention values (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 36
 1096, 1827, 2192, 2557, 2922, 3288, or 3653 days), so other values are rejected.
 
 Longer retention keeps more history for debugging and audits; shorter retention lowers CloudWatch
-Logs storage cost. `undeploy` **keeps the log groups by default** because logs can be important for
-troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's Lambda
-functions. Unrelated log groups in the account are never touched.
+Logs storage cost. `undeploy` **keeps the Lambda log groups by default** because logs can be important
+for troubleshooting; pass `--delete-logs` to remove only the four log groups for the deployment's
+Lambda functions. Unrelated log groups in the account are never touched.
+
+The API writes one JSON line per request with a request id, method, matched route, status, and
+duration. It does not log headers, cookies, bodies, tokens, or reset links. Set `--api-log-level` (or
+the Lambda's `LOG_LEVEL` environment variable) to `debug`, `info`, `warn`, `error`, or `silent`; the
+default is `info` (and `silent` under tests). The CLI choice is saved in `.provisionless` and written
+to the API Lambda on deploy.
+
+The API Gateway `$default` stage writes JSON access logs to
+`/aws/apigateway/<prefix>-api/access` with a fixed 14-day retention. Entries include the request id,
+method, route, status, response latency, response length, and integration status, with no headers or
+bodies. A scoped CloudWatch Logs resource policy grants `apigateway.amazonaws.com` permission to write
+to that log group. `undeploy` always deletes the access log group with the rest of the deployment.
 
 ## Revalidation dead-letter queue
 
@@ -178,4 +190,6 @@ Alarm management additionally needs `sns:CreateTopic`, `sns:Subscribe`,
 `cloudwatch:DescribeAlarms`, and `cloudwatch:DeleteAlarms`. `cloudwatch:PutMetricAlarm` with tags also
 requires `cloudwatch:TagResource`. Dashboard management additionally needs `cloudwatch:PutDashboard`
 and `cloudwatch:DeleteDashboards`. Dead-letter setup additionally needs `sqs:GetQueueAttributes` and
-`sqs:SetQueueAttributes`; teardown needs `sqs:DeleteQueue`.
+`sqs:SetQueueAttributes`; teardown needs `sqs:DeleteQueue`. API access logs need
+`logs:PutResourcePolicy`, `logs:DescribeResourcePolicies`, and `apigateway:PATCH` for `UpdateStage`
+(the log group create, retention, tag, and delete actions are listed above).

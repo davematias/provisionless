@@ -29,6 +29,7 @@ function stubDependencies(): AppDependencies {
     },
     jwtSecret: "openapi-document",
     secureCookies: false,
+    logLevel: "silent",
   };
 }
 

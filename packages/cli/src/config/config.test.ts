@@ -7,6 +7,7 @@ import { expect, it } from "vitest";
 import {
   loadConfig,
   resolveAlarmEmail,
+  resolveApiLogLevel,
   resolveAppPrefix,
   resolveDomains,
   resolveEmailFrom,
@@ -355,6 +356,29 @@ it("does not persist the alarm email during a dry run", () => {
   });
 
   expect(loadConfig(repo)?.alarmEmail).toBeUndefined();
+});
+
+it("saves and reuses the API log level", () => {
+  const repo = tempRepo();
+
+  expect(resolveApiLogLevel({ repoRoot: repo, logLevel: "warn", persist: true })).toBe("warn");
+  expect(loadConfig(repo)?.apiLogLevel).toBe("warn");
+  expect(resolveApiLogLevel({ repoRoot: repo, persist: true })).toBe("warn");
+  expect(resolveApiLogLevel({ repoRoot: tempRepo(), persist: true })).toBe("info");
+});
+
+it("rejects an invalid API log level", () => {
+  expect(() =>
+    resolveApiLogLevel({ repoRoot: tempRepo(), logLevel: "verbose", persist: true }),
+  ).toThrow(/Invalid API log level/);
+});
+
+it("does not persist the API log level during a dry run", () => {
+  const repo = tempRepo();
+
+  resolveApiLogLevel({ repoRoot: repo, logLevel: "debug", persist: false });
+
+  expect(loadConfig(repo)?.apiLogLevel).toBeUndefined();
 });
 
 it("defaults log retention to 30 days", () => {

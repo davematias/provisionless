@@ -1,4 +1,5 @@
 import type { AwsClients } from "../aws/clients.ts";
+import type { ApiLogLevel } from "../config/config.ts";
 import type { Logger } from "../util/log.ts";
 
 export interface DeployContext {
@@ -15,6 +16,8 @@ export interface DeployContext {
   emailFrom?: string;
   /** Optional email address subscribed to the deployment's alarm topic. */
   alarmEmail?: string;
+  /** API request log level; defaults to info. */
+  apiLogLevel?: ApiLogLevel;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;
@@ -35,6 +38,7 @@ export interface DeployOptions {
   mediaBucket?: string;
   emailFrom?: string;
   alarmEmail?: string;
+  apiLogLevel?: string;
   adminDomain?: string;
   apiDomain?: string;
   hostedZone?: string;

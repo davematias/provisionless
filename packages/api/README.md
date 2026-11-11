@@ -72,6 +72,16 @@ Values are validated against the stored schema before write operations: missing 
 wrong value types, and unknown fields return `400` with an `errors` array. Unknown content types or
 entries return `404`.
 
+### Request logging
+
+The API writes one JSON line per request with a request id, method, matched route, status, and
+duration. It never logs headers, cookies, request bodies, tokens, or reset links. The response also
+carries the request id in the `x-request-id` header.
+
+Set `LOG_LEVEL` to `debug`, `info`, `warn`, `error`, or `silent`. The default is `info` (and `silent`
+under tests); `warn` logs 4xx and 5xx responses and `error` logs only 5xx responses. API Gateway
+access logs are configured separately by `provisionless deploy`.
+
 ### API reference
 
 The [OpenAPI document](../../openapi.json) is the single reference for every route, parameter, and

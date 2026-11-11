@@ -4,6 +4,7 @@ export interface ApiResourceNames {
   role: string;
   function: string;
   api: string;
+  accessLogGroup: string;
   usersTable: string;
   resetTokensTable: string;
   contentTypesTable: string;
@@ -47,6 +48,7 @@ export function apiNames(appPrefix: string): ApiResourceNames {
     role: `${appPrefix}-api-role`,
     function: `${appPrefix}-api`,
     api: `${appPrefix}-api`,
+    accessLogGroup: `/aws/apigateway/${appPrefix}-api/access`,
     usersTable: `${appPrefix}-users`,
     resetTokensTable: `${appPrefix}-reset-tokens`,
     contentTypesTable: `${appPrefix}-content-types`,

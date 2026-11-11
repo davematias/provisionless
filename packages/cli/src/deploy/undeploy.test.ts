@@ -77,7 +77,8 @@ it("reports that existing Lambdas would be deleted in a dry run", async () => {
   expect(messages).toContain("would delete Lambda demo-admin-revalidation");
   expect(messages).toContain("would delete Lambda demo-api");
   expect(messages).not.toContain("would delete log group /aws/lambda/demo-api");
-  expect(messages).toContain("keeping CloudWatch log groups for this deployment");
+  expect(messages).toContain("would delete log group /aws/apigateway/demo-api/access");
+  expect(messages).toContain("keeping Lambda CloudWatch log groups for this deployment");
 });
 
 it("would delete log groups only when explicitly requested", async () => {
@@ -89,6 +90,7 @@ it("would delete log groups only when explicitly requested", async () => {
 
   expect(messages).toContain("would delete log group /aws/lambda/demo-api");
   expect(messages).toContain("would delete log group /aws/lambda/demo-admin-server");
+  expect(messages).toContain("would delete log group /aws/apigateway/demo-api/access");
 });
 
 it("keeps data when asked", async () => {
@@ -370,6 +372,7 @@ it("deletes the users and reset token tables when the data is removed", async ()
     "/aws/lambda/demo-admin-server",
     "/aws/lambda/demo-admin-image",
     "/aws/lambda/demo-admin-revalidation",
+    "/aws/apigateway/demo-api/access",
   ]);
 });
 
@@ -380,8 +383,11 @@ it("keeps log groups by default on a real teardown", async () => {
 
   await teardown(ctx, false);
 
-  expect(records.some((command) => command instanceof DeleteLogGroupCommand)).toBe(false);
-  expect(logs).toContain("keeping CloudWatch log groups for this deployment");
+  const deletedGroups = records
+    .filter((command): command is DeleteLogGroupCommand => command instanceof DeleteLogGroupCommand)
+    .map((command) => command.input.logGroupName);
+  expect(deletedGroups).toEqual(["/aws/apigateway/demo-api/access"]);
+  expect(logs).toContain("keeping Lambda CloudWatch log groups for this deployment");
 });
 
 it("deletes the revalidation and dead-letter queues", async () => {

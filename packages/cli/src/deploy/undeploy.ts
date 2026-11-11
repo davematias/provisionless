@@ -45,7 +45,7 @@ import { deleteObservability } from "../aws/alarms.ts";
 import { createAwsClients } from "../aws/clients.ts";
 import { adminSiteNames } from "../aws/domains.ts";
 import { adminNames, apiNames } from "../aws/names.ts";
-import { deleteLogGroup } from "../aws/logs.ts";
+import { deleteLogGroup, deleteLogGroupNamed } from "../aws/logs.ts";
 import {
   deleteRecords,
   listDomainRecords,
@@ -477,10 +477,11 @@ export async function teardown(
     await deleteLogGroup(ctx, names.imageFunction);
     await deleteLogGroup(ctx, names.revalidationFunction);
   } else {
-    ctx.log("keeping CloudWatch log groups for this deployment");
+    ctx.log("keeping Lambda CloudWatch log groups for this deployment");
   }
   await deleteApiCustomDomain(ctx);
   await deleteHttpApi(ctx, api.api);
+  await deleteLogGroupNamed(ctx, api.accessLogGroup);
   await deleteQueue(ctx, names.revalidationQueue);
   await deleteQueue(ctx, names.revalidationDlq);
   await deleteObservability(ctx);
