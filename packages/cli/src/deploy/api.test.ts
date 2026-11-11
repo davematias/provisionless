@@ -14,6 +14,7 @@ import {
   GetStagesCommand,
   TagResourceCommand as ApiGatewayTagResourceCommand,
   UpdateDomainNameCommand,
+  UpdateStageCommand,
 } from "@aws-sdk/client-apigatewayv2";
 import {
   ChangeResourceRecordSetsCommand,
@@ -49,6 +50,7 @@ function createContext(apiGatewaySend: (command: unknown) => Promise<unknown>): 
   const clients = {
     apiGateway: { send: apiGatewaySend },
     lambda: { send: apiGatewaySend },
+    logs: { send: apiGatewaySend },
   } as unknown as AwsClients;
 
   return {
@@ -90,6 +92,11 @@ it("creates an HTTP API, integration, default route, and stage", async () => {
     | CreateStageCommand
     | undefined;
   expect(stage?.input.Tags).toEqual(deploymentTags("provisionless"));
+  expect(stage?.input.AccessLogSettings).toEqual({
+    DestinationArn:
+      "arn:aws:logs:us-east-1:111122223333:log-group:/aws/apigateway/provisionless-api/access",
+    Format: expect.stringContaining("$context.requestId"),
+  });
 });
 
 it("reuses an existing HTTP API instead of creating another", async () => {
@@ -112,6 +119,12 @@ it("reuses an existing HTTP API instead of creating another", async () => {
   expect(commands.some((command) => command instanceof CreateIntegrationCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateRouteCommand)).toBe(false);
   expect(commands.some((command) => command instanceof CreateStageCommand)).toBe(false);
+  const stageUpdate = commands.find((command) => command instanceof UpdateStageCommand) as
+    | UpdateStageCommand
+    | undefined;
+  expect(stageUpdate?.input.AccessLogSettings?.DestinationArn).toBe(
+    "arn:aws:logs:us-east-1:111122223333:log-group:/aws/apigateway/provisionless-api/access",
+  );
   const tags = commands.filter(
     (command): command is ApiGatewayTagResourceCommand =>
       command instanceof ApiGatewayTagResourceCommand,
@@ -608,6 +621,7 @@ it("reports the custom domain URL through ensureHttpApi when the domain is attac
       apiGateway: { send },
       route53: { send },
       lambda: { send },
+      logs: { send },
     } as unknown as AwsClients,
   };
 
@@ -650,6 +664,14 @@ it("configures the API function env for cross-site sign-in", async () => {
     "provisionless-content-entries",
   );
   expect(update?.input.Environment?.Variables?.ADMIN_BASE_URL).toBe("https://admin.example.com");
+});
+
+it("sets the API log level in the environment", () => {
+  const ctx = createContext(async () => ({}));
+  expect(apiEnv(ctx, "secret").LOG_LEVEL).toBe("info");
+
+  ctx.apiLogLevel = "warn";
+  expect(apiEnv(ctx, "secret").LOG_LEVEL).toBe("warn");
 });
 
 it("sets the SES sender and admin URL in the API environment when email is configured", () => {

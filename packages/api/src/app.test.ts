@@ -61,6 +61,17 @@ it("defaults the cookie SameSite to Lax and allows None", () => {
   expect(parseCookieSameSite("garbage")).toBe("Lax");
 });
 
+it("writes a structured request log through the app", async () => {
+  const lines: string[] = [];
+  const app = appWith({ logLevel: "info", logWrite: (line) => lines.push(line) });
+
+  const response = await app.request("/health");
+
+  expect(response.status).toBe(200);
+  const entry = JSON.parse(lines.at(-1) ?? "{}") as Record<string, unknown>;
+  expect(entry).toMatchObject({ method: "GET", route: "/health", status: 200 });
+});
+
 it("answers preflight for an allowed origin with credentials support", async () => {
   const app = appWith({ corsAllowOrigins: ["https://admin.test"] });
 

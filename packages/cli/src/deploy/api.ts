@@ -13,6 +13,7 @@ import {
   GetRoutesCommand,
   GetStagesCommand,
   UpdateDomainNameCommand,
+  UpdateStageCommand,
   type DomainNameConfiguration,
 } from "@aws-sdk/client-apigatewayv2";
 import {
@@ -24,7 +25,7 @@ import {
 
 import { bundleApi } from "../artifacts/api-bundle.ts";
 import { resolveApiArtifact } from "../artifacts/resolve.ts";
-import { DEFAULT_LOG_RETENTION, ensureLogGroup } from "../aws/logs.ts";
+import { DEFAULT_LOG_RETENTION, ensureApiGatewayAccessLogs, ensureLogGroup } from "../aws/logs.ts";
 import {
   addInvokePermission,
   deployFunction,
@@ -169,6 +170,7 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
     if (ctx.dryRun) {
       ctx.log(`would create API Gateway HTTP API ${names.api}`);
       ctx.apiId = "<api-id>";
+      await ensureApiGatewayAccessLogs(ctx, names.accessLogGroup, "<api-id>");
       const domainUrl = await ensureApiDomain(ctx, "<api-id>");
       return domainUrl ?? `https://<api-id>.execute-api.${ctx.region}.amazonaws.com`;
     }
@@ -187,6 +189,11 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
   }
   ctx.apiId = apiId;
   await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/apis/${apiId}`));
+  const accessLogs = await ensureApiGatewayAccessLogs(ctx, names.accessLogGroup, apiId);
+  const accessLogSettings = {
+    DestinationArn: accessLogs.destinationArn,
+    Format: accessLogs.format,
+  };
 
   const integrations = await ctx.clients.apiGateway.send(
     new GetIntegrationsCommand({ ApiId: apiId }),
@@ -229,10 +236,18 @@ export async function ensureHttpApi(ctx: DeployContext, functionArn: string): Pr
         ApiId: apiId,
         StageName: "$default",
         AutoDeploy: true,
+        AccessLogSettings: accessLogSettings,
         Tags: deploymentTags(ctx.appPrefix),
       }),
     );
   } else {
+    await ctx.clients.apiGateway.send(
+      new UpdateStageCommand({
+        ApiId: apiId,
+        StageName: "$default",
+        AccessLogSettings: accessLogSettings,
+      }),
+    );
     await tagApiGatewayResource(ctx, apiGatewayArn(ctx, `/apis/${apiId}/stages/$default`));
   }
 
@@ -431,6 +446,7 @@ export function apiEnv(ctx: DeployContext, jwtSecret: string): Record<string, st
     CONTENT_ENTRIES_TABLE_NAME: names.contentEntriesTable,
     MEDIA_BUCKET_NAME: ctx.mediaBucket,
     JWT_SECRET: jwtSecret,
+    LOG_LEVEL: ctx.apiLogLevel ?? "info",
     ...(ctx.emailFrom
       ? { EMAIL_FROM_ADDRESS: ctx.emailFrom, EMAIL_FROM_NAME: "Provisionless" }
       : {}),

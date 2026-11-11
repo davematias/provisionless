@@ -38,6 +38,9 @@ Options:
   non-interactive runs (scripts and CI) when you do not want custom domains.
 - `--log-retention <days>` — days to keep Lambda logs (default `30`; saved in `.provisionless`).
   CloudWatch Logs only accepts specific values such as 1, 7, 14, 30, 60, 90, 180, and 365.
+- `--api-log-level <level>` — API request log level: `debug`, `info`, `warn`, `error`, or `silent`
+  (default `info`; saved in `.provisionless`). `warn` logs 4xx and 5xx responses and `error` logs
+  only 5xx responses.
 - `--test-user-username <username>` / `--test-user-password <password>` /
   `--test-user-email <email>` — supply the test user's credentials and email address
   non-interactively (prompted when omitted).
@@ -85,8 +88,9 @@ npx provisionless undeploy
 The CLI reads the app prefix from `.provisionless` (or `--prefix`) and asks whether to keep data
 (S3 objects and DynamoDB tables) before deleting anything. Use `--keep-data` / `--no-keep-data` to
 answer up front, `--yes` to skip the confirmation, and `--dry-run` to see what would be removed.
-CloudWatch logs are **kept by default** because they can be important for troubleshooting; pass
-`--delete-logs` to remove the deployment's log groups (with `--yes`, logs stay unless you pass it).
+Lambda CloudWatch logs are **kept by default** because they can be important for troubleshooting;
+pass `--delete-logs` to remove them (with `--yes`, logs stay unless you pass it). The API Gateway
+access log group is always removed with the rest of the deployment.
 
 Domain resources recorded in `.provisionless` are removed too: the API Gateway custom domain and its
 mappings, the Route 53 alias and ACM-validation records for the managed admin/API domains (the CLI only
@@ -216,6 +220,16 @@ Deploy also creates or replaces a CloudWatch dashboard named `<prefix>-dashboard
 4xx/5xx counts and latency; Lambda invocations, errors, duration, and throttles; revalidation queue
 age and dead-letter depth; and DynamoDB throttles. The console URL is printed after deploy.
 Redeploying replaces the dashboard contents without creating a duplicate, and `undeploy` deletes it.
+
+### Logs
+
+The API writes one JSON line per request with a request id, method, matched route, status, and
+duration; it never includes bodies, cookies, tokens, or reset links. Set `--api-log-level` to
+`debug`, `info`, `warn`, `error`, or `silent`; the default is `info`.
+
+The API Gateway stage writes JSON access logs to `/aws/apigateway/<prefix>-api/access` with 14-day
+retention. Access entries include the request id, method, route, status, latency, and response
+length, but no headers or bodies.
 
 `deploy` builds the API bundle and the admin website (with
 [OpenNext](https://opennext.js.org/aws)) when it runs from a source checkout; outside a checkout it

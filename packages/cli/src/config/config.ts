@@ -11,6 +11,19 @@ import { confirm, type Ask } from "../util/prompt.ts";
 
 export const CONFIG_FILE = ".provisionless";
 
+/** Supported API request log levels. */
+export type ApiLogLevel = "debug" | "info" | "warn" | "error" | "silent";
+
+export function isValidApiLogLevel(value: string): value is ApiLogLevel {
+  return (
+    value === "debug" ||
+    value === "info" ||
+    value === "warn" ||
+    value === "error" ||
+    value === "silent"
+  );
+}
+
 export interface ProvisionlessConfig {
   appPrefix: string;
   mediaBucket?: string;
@@ -23,6 +36,7 @@ export interface ProvisionlessConfig {
   jwtSecret?: string;
   emailFrom?: string;
   alarmEmail?: string;
+  apiLogLevel?: ApiLogLevel;
   logRetention?: number;
 }
 
@@ -285,6 +299,25 @@ export function resolveAlarmEmail(options: ResolveAlarmEmailOptions): string | u
 
   if (options.alarmEmail !== undefined && options.persist) {
     updateConfig(options.repoRoot, { alarmEmail: value });
+  }
+  return value;
+}
+
+export interface ResolveApiLogLevelOptions {
+  repoRoot: string;
+  logLevel?: string;
+  persist: boolean;
+}
+
+/** Resolves the API request log level, defaulting to info. */
+export function resolveApiLogLevel(options: ResolveApiLogLevelOptions): ApiLogLevel {
+  const existing = loadConfig(options.repoRoot);
+  const value = options.logLevel ?? existing?.apiLogLevel ?? "info";
+  if (!isValidApiLogLevel(value)) {
+    throw new Error(`Invalid API log level "${value}". Use debug, info, warn, error, or silent.`);
+  }
+  if (options.logLevel !== undefined && options.persist) {
+    updateConfig(options.repoRoot, { apiLogLevel: value });
   }
   return value;
 }

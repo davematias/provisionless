@@ -7,6 +7,7 @@ import { registerAuthRoutes, type AuthDependencies } from "./auth/routes.ts";
 import { SESSION_COOKIE, type AppEnv } from "./auth/session.ts";
 import { registerContentRoutes } from "./content/routes.ts";
 import type { ContentEntryStore, ContentTypeStore } from "./content/store.ts";
+import { createRequestLogger, parseLogLevel, type LogLevel } from "./logging.ts";
 import { jsonResponse } from "./openapi/helpers.ts";
 import { registerUserRoutes } from "./users/routes.ts";
 
@@ -16,6 +17,8 @@ export interface AppDependencies extends AuthDependencies {
   contentTypes: ContentTypeStore;
   contentEntries: ContentEntryStore;
   corsAllowOrigins?: string[];
+  logLevel?: LogLevel;
+  logWrite?: (line: string) => void;
 }
 
 /**
@@ -40,6 +43,14 @@ export function parseCookieSameSite(value: string | undefined): "Lax" | "None" {
  */
 export function createApp(deps: AppDependencies): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+
+  app.use(
+    "*",
+    createRequestLogger({
+      level: deps.logLevel ?? parseLogLevel(undefined),
+      write: deps.logWrite,
+    }),
+  );
 
   const origins = deps.corsAllowOrigins ?? [];
   if (origins.length > 0) {
