@@ -74,9 +74,9 @@ entries return `404`.
 
 ### Request logging
 
-The API writes one JSON line per request with a request id, method, matched route, status, and
-duration. It never logs headers, cookies, request bodies, tokens, or reset links. The response also
-carries the request id in the `x-request-id` header.
+The API uses pino to write one JSON line per request with a request id, method, matched route,
+status, and duration. It never logs headers, cookies, request bodies, tokens, or reset links. The
+response also carries the request id in the `x-request-id` header.
 
 Set `LOG_LEVEL` to `debug`, `info`, `warn`, `error`, or `silent`. The default is `info` (and `silent`
 under tests); `warn` logs 4xx and 5xx responses and `error` logs only 5xx responses. API Gateway
