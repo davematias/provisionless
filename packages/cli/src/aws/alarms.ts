@@ -42,6 +42,8 @@ export interface ObservabilityTargets {
   functions: AlarmFunction[];
   /** Revalidation queue name (including the .fifo suffix). */
   queueName: string;
+  /** Revalidation dead-letter queue name (including the .fifo suffix). */
+  deadLetterQueueName?: string;
 }
 
 export interface AlarmDefinition {
@@ -121,6 +123,20 @@ export function buildAlarmDefinitions(
     threshold: REVALIDATION_QUEUE_AGE_SECONDS,
     comparisonOperator: "GreaterThanOrEqualToThreshold",
   });
+
+  if (targets.deadLetterQueueName) {
+    definitions.push({
+      name: `${prefix}-revalidation-dlq-depth`,
+      description: "The revalidation dead-letter queue holds one or more messages.",
+      namespace: "AWS/SQS",
+      metricName: "ApproximateNumberOfMessagesVisible",
+      statistic: "Maximum",
+      dimensions: [{ Name: "QueueName", Value: targets.deadLetterQueueName }],
+      period: ALARM_PERIOD_SECONDS,
+      threshold: 1,
+      comparisonOperator: "GreaterThanOrEqualToThreshold",
+    });
+  }
 
   const logMetrics: MetricDataQuery[] = targets.functions.map((fn, index) => ({
     Id: `logs${index + 1}`,
