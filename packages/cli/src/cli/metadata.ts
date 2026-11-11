@@ -35,7 +35,7 @@ export const COMMAND_HELP = {
       "Admin: S3 assets bucket, DynamoDB tag cache, FIFO revalidation queue and dead-letter queue, three Lambda functions, Lambda Function URLs, a CloudFront distribution, OACs, and an IAM role",
       "Media: an S3 media bucket",
       "Logs: a CloudWatch log group for every Lambda function, with the configured retention period",
-      "Alarms: an SNS notification topic and CloudWatch alarms for API 5xx responses, Lambda errors and throttles, revalidation queue age and dead-letter depth, and daily log ingestion; an optional --alarm-email subscription requires inbox confirmation",
+      "Alarms: an SNS notification topic, CloudWatch alarms for API 5xx responses, Lambda errors and throttles, revalidation queue age and dead-letter depth, and daily log ingestion, plus a per-deployment CloudWatch dashboard; an optional --alarm-email subscription requires inbox confirmation",
       "Domains: an ACM certificate per configured domain (us-east-1 for admin, the deployment region for the API), with DNS validation records in Route 53 when a hosted zone is set; the admin domain is aliased to the CloudFront distribution (with an apex/www redirect) and the API domain to an API Gateway custom domain, each with alias DNS records when a hosted zone is set",
     ],
   },
@@ -59,7 +59,7 @@ export const COMMAND_HELP = {
       "Media: the S3 media bucket (unless keeping data)",
       "Domains: API Gateway custom domain and mappings, Route 53 alias and ACM-validation records for the managed domains, the CloudFront redirect function, and the ACM certificates recorded in .provisionless",
       "Logs: kept by default; with --delete-logs, deletes the CloudWatch log groups for the deployment's Lambda functions",
-      "Alarms: deletes the deployment's CloudWatch alarms and SNS notification topic, including any email subscription",
+      "Alarms: deletes the deployment's CloudWatch alarms, SNS notification topic (including any email subscription), and CloudWatch dashboard",
     ],
   },
   list: {

@@ -1,7 +1,9 @@
 import type { ComparisonOperator, MetricDataQuery, Statistic } from "@aws-sdk/client-cloudwatch";
 import {
   DeleteAlarmsCommand,
+  DeleteDashboardsCommand,
   DescribeAlarmsCommand,
+  PutDashboardCommand,
   PutMetricAlarmCommand,
 } from "@aws-sdk/client-cloudwatch";
 import {
@@ -44,6 +46,8 @@ export interface ObservabilityTargets {
   queueName: string;
   /** Revalidation dead-letter queue name (including the .fifo suffix). */
   deadLetterQueueName?: string;
+  /** DynamoDB table names that should appear on the dashboard. */
+  tableNames: string[];
 }
 
 export interface AlarmDefinition {
@@ -270,13 +274,266 @@ export async function ensureAlarms(
   ctx.log(`configured ${definitions.length} CloudWatch alarms`);
 }
 
-/** Creates the deployment notification topic and its alarms. */
+export interface DashboardMetricWidget {
+  type: "metric";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  properties: {
+    metrics: unknown[][];
+    view: "timeSeries";
+    region: string;
+    title: string;
+    period: number;
+  };
+}
+
+export interface DashboardBody {
+  widgets: DashboardMetricWidget[];
+}
+
+function lambdaMetrics(
+  targets: ObservabilityTargets,
+  metricName: string,
+  stat: string,
+): unknown[][] {
+  return targets.functions.map((fn) => [
+    "AWS/Lambda",
+    metricName,
+    "FunctionName",
+    fn.name,
+    { stat, label: `${fn.label} ${metricName}` },
+  ]);
+}
+
+/** Builds the deployment dashboard body from the metrics the stack publishes. */
+export function buildDashboardBody(
+  ctx: DeployContext,
+  targets: ObservabilityTargets,
+): DashboardBody {
+  const widgets: DashboardMetricWidget[] = [];
+  const region = ctx.region;
+  const period = ALARM_PERIOD_SECONDS;
+  let y = 0;
+
+  if (targets.apiId) {
+    widgets.push({
+      type: "metric",
+      x: 0,
+      y,
+      width: 12,
+      height: 6,
+      properties: {
+        metrics: [
+          ["AWS/ApiGateway", "Count", "ApiId", targets.apiId, { stat: "Sum", label: "Requests" }],
+          ["AWS/ApiGateway", "4XXError", "ApiId", targets.apiId, { stat: "Sum", label: "4xx" }],
+          ["AWS/ApiGateway", "5XXError", "ApiId", targets.apiId, { stat: "Sum", label: "5xx" }],
+        ],
+        view: "timeSeries",
+        region,
+        title: "API requests and errors",
+        period,
+      },
+    });
+    widgets.push({
+      type: "metric",
+      x: 12,
+      y,
+      width: 12,
+      height: 6,
+      properties: {
+        metrics: [
+          [
+            "AWS/ApiGateway",
+            "Latency",
+            "ApiId",
+            targets.apiId,
+            { stat: "Average", label: "Latency" },
+          ],
+        ],
+        view: "timeSeries",
+        region,
+        title: "API latency",
+        period,
+      },
+    });
+    y += 6;
+  }
+
+  widgets.push({
+    type: "metric",
+    x: 0,
+    y,
+    width: 12,
+    height: 6,
+    properties: {
+      metrics: [
+        ...lambdaMetrics(targets, "Invocations", "Sum"),
+        ...lambdaMetrics(targets, "Errors", "Sum"),
+      ],
+      view: "timeSeries",
+      region,
+      title: "Lambda invocations and errors",
+      period,
+    },
+  });
+  widgets.push({
+    type: "metric",
+    x: 12,
+    y,
+    width: 12,
+    height: 6,
+    properties: {
+      metrics: lambdaMetrics(targets, "Duration", "Average"),
+      view: "timeSeries",
+      region,
+      title: "Lambda duration",
+      period,
+    },
+  });
+  y += 6;
+
+  widgets.push({
+    type: "metric",
+    x: 0,
+    y,
+    width: 12,
+    height: 6,
+    properties: {
+      metrics: lambdaMetrics(targets, "Throttles", "Sum"),
+      view: "timeSeries",
+      region,
+      title: "Lambda throttles",
+      period,
+    },
+  });
+
+  const queueMetrics: unknown[][] = [
+    [
+      "AWS/SQS",
+      "ApproximateAgeOfOldestMessage",
+      "QueueName",
+      targets.queueName,
+      { stat: "Maximum", label: "Oldest message age" },
+    ],
+  ];
+  if (targets.deadLetterQueueName) {
+    queueMetrics.push([
+      "AWS/SQS",
+      "ApproximateNumberOfMessagesVisible",
+      "QueueName",
+      targets.deadLetterQueueName,
+      { stat: "Maximum", label: "Dead-letter depth" },
+    ]);
+  }
+  widgets.push({
+    type: "metric",
+    x: 12,
+    y,
+    width: 12,
+    height: 6,
+    properties: {
+      metrics: queueMetrics,
+      view: "timeSeries",
+      region,
+      title: "Revalidation queue",
+      period,
+    },
+  });
+  y += 6;
+
+  widgets.push({
+    type: "metric",
+    x: 0,
+    y,
+    width: 24,
+    height: 6,
+    properties: {
+      metrics: targets.tableNames.map((tableName) => [
+        "AWS/DynamoDB",
+        "ThrottledRequests",
+        "TableName",
+        tableName,
+        { stat: "Sum", label: tableName },
+      ]),
+      view: "timeSeries",
+      region,
+      title: "DynamoDB throttles",
+      period,
+    },
+  });
+
+  return { widgets };
+}
+
+/** URL of the deployment dashboard in the CloudWatch console. */
+export function dashboardUrl(ctx: DeployContext): string {
+  const { dashboard } = observabilityNames(ctx.appPrefix);
+  return `https://${ctx.region}.console.aws.amazon.com/cloudwatch/home?region=${ctx.region}#dashboards:name=${encodeURIComponent(dashboard)}`;
+}
+
+/** Creates or replaces the deployment dashboard. */
+export async function ensureDashboard(
+  ctx: DeployContext,
+  targets: ObservabilityTargets,
+): Promise<void> {
+  const { dashboard } = observabilityNames(ctx.appPrefix);
+
+  if (ctx.dryRun) {
+    ctx.log(`would create or update CloudWatch dashboard ${dashboard}`);
+    return;
+  }
+
+  const result = await ctx.clients.cloudwatch.send(
+    new PutDashboardCommand({
+      DashboardName: dashboard,
+      DashboardBody: JSON.stringify(buildDashboardBody(ctx, targets)),
+      Tags: deploymentTagList(ctx.appPrefix),
+    }),
+  );
+  const messages = (result.DashboardValidationMessages ?? [])
+    .map((message) => message.Message)
+    .filter((message): message is string => Boolean(message));
+  if (messages.length > 0) {
+    throw new Error(`CloudWatch rejected dashboard ${dashboard}: ${messages.join("; ")}`);
+  }
+
+  ctx.log(`dashboard: ${dashboardUrl(ctx)}`);
+}
+
+/** Deletes the deployment dashboard, leaving other prefixes untouched. */
+export async function deleteDashboard(ctx: DeployContext): Promise<void> {
+  const { dashboard } = observabilityNames(ctx.appPrefix);
+
+  if (ctx.dryRun) {
+    ctx.log(`would delete CloudWatch dashboard ${dashboard}`);
+    return;
+  }
+
+  try {
+    await ctx.clients.cloudwatch.send(new DeleteDashboardsCommand({ DashboardNames: [dashboard] }));
+    ctx.log(`deleted CloudWatch dashboard ${dashboard}`);
+  } catch (error) {
+    if (
+      !isAwsError(error, "ResourceNotFound") &&
+      !isAwsError(error, "DashboardNotFound") &&
+      !isAwsError(error, "NotFoundException")
+    ) {
+      throw error;
+    }
+    ctx.log(`no CloudWatch dashboard ${dashboard}`);
+  }
+}
+
+/** Creates the deployment notification topic, its alarms, and the dashboard. */
 export async function ensureObservability(
   ctx: DeployContext,
   targets: ObservabilityTargets,
 ): Promise<void> {
   const topicArn = await ensureNotificationTopic(ctx, ctx.alarmEmail);
   await ensureAlarms(ctx, topicArn, targets);
+  await ensureDashboard(ctx, targets);
 }
 
 async function listAlarmNames(ctx: DeployContext): Promise<string[]> {
@@ -305,6 +562,7 @@ export async function deleteObservability(ctx: DeployContext): Promise<void> {
 
   if (ctx.dryRun) {
     ctx.log(`would delete CloudWatch alarms and SNS topic ${topic} for ${ctx.appPrefix}`);
+    await deleteDashboard(ctx);
     return;
   }
 
@@ -325,4 +583,6 @@ export async function deleteObservability(ctx: DeployContext): Promise<void> {
     }
     ctx.log(`no SNS topic ${topic}`);
   }
+
+  await deleteDashboard(ctx);
 }
