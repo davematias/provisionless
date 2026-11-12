@@ -44,7 +44,31 @@ Options:
 - `--test-user-username <username>` / `--test-user-password <password>` /
   `--test-user-email <email>` — supply the test user's credentials and email address
   non-interactively (prompted when omitted).
+- `--preflight` — check the caller's IAM permissions with IAM policy simulation before provisioning;
+  with `--dry-run` it performs only the check.
 - `--dry-run` — report what would be created or updated without changing AWS.
+
+### Permission preflight
+
+Check the caller's permissions before any resource is created:
+
+```bash
+provisionless deploy --preflight
+provisionless deploy --preflight --dry-run   # check only, no provisioning
+```
+
+The check calls `iam:SimulatePrincipalPolicy` with the deploy's action inventory and reports denied
+actions grouped by service, including the evaluated resource. A denial exits non-zero before any
+resource is created or changed. For an assumed role, the CLI resolves the underlying role ARN with
+`iam:GetRole`; the check cannot simulate the account root user or federated users.
+
+The preflight is advisory. It checks identity policies and SCPs, but not resource policies, service
+quotas, region opt-in, SES sandbox status, or permissions for resource IDs that do not exist yet.
+The preflight itself needs `iam:SimulatePrincipalPolicy`, plus `iam:GetRole` for assumed-role
+sessions.
+
+For least privilege, run Provisionless under a **dedicated IAM user or role** that has only the
+permissions it needs, rather than a broad administrator or the account root user.
 
 ### List deployments
 

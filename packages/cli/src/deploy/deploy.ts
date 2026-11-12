@@ -21,6 +21,7 @@ import { configureApiAuth, deployApi } from "./api.ts";
 import { ensureCertificates } from "./certificates.ts";
 import type { DeployContext, DeployOptions } from "./context.ts";
 import { deployMedia, resolveMediaBucket } from "./media.ts";
+import { runPreflight } from "./preflight.ts";
 import { seedTestUser, type TestUserCredentials } from "./seed.ts";
 
 export interface DeployResult {
@@ -98,7 +99,7 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
     });
 
     let accountId = "000000000000";
-    if (!options.dryRun) {
+    if (!options.dryRun || options.preflight) {
       const identity = await clients.sts.send(new GetCallerIdentityCommand({}));
       if (!identity.Account) {
         throw new Error("Could not determine the AWS account ID. Check your credentials.");
@@ -124,6 +125,14 @@ export async function deploy(options: DeployOptions): Promise<DeployResult> {
       log,
       clients,
     };
+
+    if (options.preflight) {
+      await runPreflight(ctx);
+      if (options.dryRun) {
+        log("preflight complete: no AWS resources were changed");
+        return { apiUrl: "<preflight>", adminUrl: "<preflight>" };
+      }
+    }
 
     const certificates = await ensureCertificates(ctx, !options.dryRun);
     ctx.adminCertificateArn = certificates.adminCertificateArn;

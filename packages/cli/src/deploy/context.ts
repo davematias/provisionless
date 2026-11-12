@@ -33,6 +33,7 @@ export interface DeployContext {
 
 export interface DeployOptions {
   region?: string;
+  preflight?: boolean;
   dryRun: boolean;
   prefix?: string;
   mediaBucket?: string;
