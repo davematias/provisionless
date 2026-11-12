@@ -1,6 +1,6 @@
 {
   "name": "provisionless",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Deploy Provisionless to AWS with a single command.",
   "license": "AGPL-3.0",
   "type": "module",

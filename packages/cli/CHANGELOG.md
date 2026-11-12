@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/davematias/provisionless/compare/provisionless-v0.2.0...provisionless-v0.3.0) (2026-11-12)
+
+
+### Features
+
+* **api:** add structured request and access logs ([#103](https://github.com/davematias/provisionless/issues/103)) ([ed445cb](https://github.com/davematias/provisionless/commit/ed445cbcb2c144c0b73ad85adfc24cdcf089768c))
+* **cli:** add deploy permission preflight ([#105](https://github.com/davematias/provisionless/issues/105)) ([11fd37f](https://github.com/davematias/provisionless/commit/11fd37fa359adc4f219b14e75cf4fa6fb91d9d12))
+
 ## [0.2.0](https://github.com/davematias/provisionless/compare/provisionless-v0.1.1...provisionless-v0.2.0) (2026-11-11)
 
 
