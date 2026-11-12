@@ -109,7 +109,8 @@ its branch policy limits which refs may use it:
 
 ```bash
 gh api -X PUT repos/davematias/provisionless/environments/e2e-deploy \
-  -f 'deployment_branch_policy[custom_branch_policies]=true'
+  -F 'deployment_branch_policy[protected_branches]=false' \
+  -F 'deployment_branch_policy[custom_branch_policies]=true'
 
 gh variable set AWS_E2E_ROLE_ARN --repo davematias/provisionless --env e2e-deploy \
   --body arn:aws:iam::<account-id>:role/provisionless-e2e
