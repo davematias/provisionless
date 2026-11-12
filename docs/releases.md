@@ -35,6 +35,14 @@ released either; the CLI consumes it through the workspace link.
 Release pull requests run the same required checks as any other pull request. The maintainer can
 approve them or use the admin bypass to merge their own.
 
+## End-to-end release gate
+
+Release pull requests also run the `End-to-end deploy` check, which deploys the upcoming CLI and its
+deploy artifacts into a dedicated AWS test account, verifies the API and admin site, and tears the
+stack down. It is a required check, so a release pull request cannot merge until it passes; other
+pull requests skip the job, which GitHub reports as a successful check. See
+[e2e-deploy.md](e2e-deploy.md) for the account setup, credentials, runtime, and cost.
+
 ## Token
 
 The workflow uses `RELEASE_PLEASE_TOKEN`, a fine-grained personal access token stored as a repository
