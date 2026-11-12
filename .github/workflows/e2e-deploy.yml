@@ -34,12 +34,12 @@ jobs:
       AWS_REGION: ${{ vars.AWS_E2E_REGION }}
       AWS_ROLE_ARN: ${{ vars.AWS_E2E_ROLE_ARN }}
       PREFIX: pv-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-      PROJECT: ${{ runner.temp }}/provisionless-e2e
     steps:
       - name: Check the environment configuration
         run: |
           : "${AWS_ROLE_ARN:?Set the e2e-deploy environment variable AWS_E2E_ROLE_ARN}"
           : "${AWS_REGION:?Set the e2e-deploy environment variable AWS_E2E_REGION}"
+          printf 'PROJECT=%s/provisionless-e2e\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v5
         with:
