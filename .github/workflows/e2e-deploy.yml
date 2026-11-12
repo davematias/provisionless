@@ -1,0 +1,249 @@
+name: End-to-end deploy
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-deploy-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-deploy:
+    name: End-to-end deploy
+    # Release pull requests prove that the upcoming CLI can deploy. Every other pull request skips
+    # the job, which GitHub reports as a successful check, so normal merges are never blocked.
+    # Fork pull requests never run it: their head repository differs, and the e2e-deploy environment
+    # only issues OIDC credentials to this repository's branches.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: e2e-deploy
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_E2E_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_E2E_ROLE_ARN }}
+      PREFIX: pv-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check the environment configuration
+        run: |
+          : "${AWS_ROLE_ARN:?Set the e2e-deploy environment variable AWS_E2E_ROLE_ARN}"
+          : "${AWS_REGION:?Set the e2e-deploy environment variable AWS_E2E_REGION}"
+          printf 'PROJECT=%s/provisionless-e2e\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v5
+        with:
+          # Validate the pull request commit itself, not GitHub's synthetic merge commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Use the pinned npm
+        run: npm install -g npm@11.9.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: provisionless-e2e-${{ github.run_id }}
+
+      - name: Build the CLI
+        run: npm run build --workspace=provisionless
+
+      - name: Build the deploy artifacts
+        run: |
+          version="$(node -p 'require("./packages/cli/package.json").version')"
+          printf 'VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/release/provisionless-v${version}"
+          node packages/cli/dist/scripts/build-release-artifacts.js \
+            --version "$version" \
+            --out "$RUNNER_TEMP/release/provisionless-v${version}"
+
+      - name: Install the packed CLI in a clean project
+        run: |
+          mkdir -p "$PROJECT" "$RUNNER_TEMP/tarball"
+          npm pack --workspace=provisionless --pack-destination "$RUNNER_TEMP/tarball" --silent
+          cd "$PROJECT"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/tarball/*.tgz
+          ./node_modules/.bin/provisionless --version
+
+      - name: Deploy with the packed CLI
+        run: |
+          set -o pipefail
+
+          password="$(openssl rand -hex 16)"
+          printf '::add-mask::%s\n' "$password"
+          printf 'TEST_PASSWORD=%s\n' "$password" >> "$GITHUB_ENV"
+
+          cd "$RUNNER_TEMP/release"
+          nohup python3 -m http.server 8765 --bind 127.0.0.1 > "$RUNNER_TEMP/artifact-server.log" 2>&1 &
+          artifact_base_url="http://127.0.0.1:8765"
+          printf 'ARTIFACT_BASE_URL=%s\n' "$artifact_base_url" >> "$GITHUB_ENV"
+
+          for _ in $(seq 1 30); do
+            if curl -fsS "$artifact_base_url/provisionless-v${VERSION}/provisionless-v${VERSION}-SHA256SUMS" > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS "$artifact_base_url/provisionless-v${VERSION}/provisionless-v${VERSION}-SHA256SUMS" > /dev/null
+
+          cd "$PROJECT"
+          PROVISIONLESS_RELEASE_BASE_URL="$artifact_base_url" \
+          PROVISIONLESS_CACHE_DIR="$RUNNER_TEMP/cache" \
+            ./node_modules/.bin/provisionless deploy \
+            --region "$AWS_REGION" \
+            --prefix "$PREFIX" \
+            --media-bucket "$PREFIX-media" \
+            --no-domains \
+            --test-user-username e2e-admin \
+            --test-user-password "$password" \
+            --test-user-email e2e@example.com \
+            2>&1 | tee "$RUNNER_TEMP/deploy.log"
+
+      - name: Verify the deployment
+        run: |
+          api_url="$(sed -n 's/^\[provisionless\] API URL:[[:space:]]*//p' "$RUNNER_TEMP/deploy.log" | tail -n 1)"
+          admin_url="$(sed -n 's/^\[provisionless\] Admin URL:[[:space:]]*//p' "$RUNNER_TEMP/deploy.log" | tail -n 1)"
+          : "${api_url:?The deploy log does not contain the API URL}"
+          : "${admin_url:?The deploy log does not contain the admin URL}"
+          printf 'API_URL=%s\nADMIN_URL=%s\n' "$api_url" "$admin_url" >> "$GITHUB_ENV"
+
+          node packages/cli/dist/scripts/e2e-verify.js \
+            --api-url "$api_url" \
+            --admin-url "$admin_url" \
+            --username e2e-admin \
+            --password "$TEST_PASSWORD"
+
+      - name: Tear down and check for leftovers
+        if: always()
+        run: |
+          set +e
+
+          if [ -f "$RUNNER_TEMP/deploy.log" ] && [ -x "$PROJECT/node_modules/.bin/provisionless" ]; then
+            ( cd "$PROJECT" && ./node_modules/.bin/provisionless undeploy \
+              --region "$AWS_REGION" --prefix "$PREFIX" --yes --no-keep-data --delete-logs )
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "::warning::undeploy exited with status ${status}; checking for leftover resources"
+            fi
+          fi
+
+          if [ ! -f "$RUNNER_TEMP/deploy.log" ]; then
+            echo "No deployment was attempted; nothing to tear down."
+            exit 0
+          fi
+
+          collect_leftovers() {
+            local value
+
+            value="$(aws logs describe-log-groups --region "$AWS_REGION" \
+              --log-group-name-prefix "/aws/lambda/${PREFIX}" \
+              --query 'logGroups[].logGroupName' --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "Lambda log groups: ${value}"
+            fi
+
+            value="$(aws logs describe-log-groups --region "$AWS_REGION" \
+              --log-group-name-prefix "/aws/apigateway/${PREFIX}" \
+              --query 'logGroups[].logGroupName' --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "API Gateway log groups: ${value}"
+            fi
+
+            value="$(aws lambda list-functions --region "$AWS_REGION" \
+              --query "Functions[?starts_with(FunctionName, '${PREFIX}')].FunctionName" \
+              --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "Lambda functions: ${value}"
+            fi
+
+            value="$(aws s3api list-buckets \
+              --query "Buckets[?starts_with(Name, '${PREFIX}-')].Name" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "S3 buckets: ${value}"
+            fi
+
+            value="$(aws dynamodb list-tables --region "$AWS_REGION" \
+              --query "TableNames[?starts_with(@, '${PREFIX}')]" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "DynamoDB tables: ${value}"
+            fi
+
+            value="$(aws sqs list-queues --region "$AWS_REGION" \
+              --queue-name-prefix "${PREFIX}" --query 'QueueUrls' --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "SQS queues: ${value}"
+            fi
+
+            value="$(aws sns list-topics --region "$AWS_REGION" \
+              --query "Topics[?contains(TopicArn, ':${PREFIX}')].TopicArn" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "SNS topics: ${value}"
+            fi
+
+            value="$(aws apigatewayv2 get-apis --region "$AWS_REGION" \
+              --query "Items[?starts_with(Name, '${PREFIX}')].Name" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "API Gateway APIs: ${value}"
+            fi
+
+            value="$(aws iam list-roles \
+              --query "Roles[?starts_with(RoleName, '${PREFIX}')].RoleName" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "IAM roles: ${value}"
+            fi
+
+            value="$(aws cloudfront list-distributions \
+              --query "DistributionList.Items[?Comment=='${PREFIX}-admin'].Id" --output text 2>&1)"
+            if [ -n "$value" ] && [ "$value" != "None" ]; then
+              echo "CloudFront distributions: ${value}"
+            fi
+
+            listed="$("$PROJECT/node_modules/.bin/provisionless" list --json --region "$AWS_REGION" 2>&1)"
+            if [ $? -ne 0 ]; then
+              echo "Could not list tagged deployments: ${listed}"
+              return
+            fi
+            value="$(printf '%s' "$listed" | jq -r --arg prefix "$PREFIX" \
+              '.[] | select(.prefix == $prefix) | .prefix' 2>&1)"
+            if [ -n "$value" ]; then
+              echo "Tagged deployments: ${value}"
+            fi
+          }
+
+          leftovers="$(collect_leftovers)"
+          for attempt in 1 2 3 4 5 6; do
+            if [ -z "$leftovers" ]; then
+              break
+            fi
+            echo "::warning::Resources with the ${PREFIX} prefix remain; retrying in 15 seconds (attempt ${attempt}/6)."
+            sleep 15
+            leftovers="$(collect_leftovers)"
+          done
+
+          if [ -n "$leftovers" ]; then
+            printf '%s\n' "$leftovers"
+            echo "::error::The end-to-end deploy left resources with the ${PREFIX} prefix behind."
+            exit 1
+          fi
+
+          echo "Torn down; no resources with the ${PREFIX} prefix remain."

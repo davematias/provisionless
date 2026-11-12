@@ -30,19 +30,29 @@ with bypass mode `pull_request`.
 
 ### Required checks
 
-| Check                              | Workflow |
-| ---------------------------------- | -------- |
-| Typecheck, lint, unit tests, build | CI       |
-| Dependency audit                   | CI       |
-| Secret scan                        | CI       |
-| Static analysis                    | CI       |
-| Integration tests                  | CI       |
-| Validate PR title                  | PR title |
+| Check                              | Workflow          |
+| ---------------------------------- | ----------------- |
+| Typecheck, lint, unit tests, build | CI                |
+| Dependency audit                   | CI                |
+| Secret scan                        | CI                |
+| Static analysis                    | CI                |
+| Integration tests                  | CI                |
+| Validate PR title                  | PR title          |
+| End-to-end deploy                  | End-to-end deploy |
 
-The names must match the job names in `.github/workflows/ci.yml` and
-`.github/workflows/pr-title.yml`. Renaming a job means updating the ruleset; otherwise pull requests
-wait forever for a check that will never report under the old name. For what each check does and how
-to run it locally, see [quality-and-security.md](quality-and-security.md).
+The names must match the job names in `.github/workflows/*.yml`. Renaming a job means updating the
+ruleset; otherwise pull requests wait forever for a check that will never report under the old name.
+`End-to-end deploy` only runs for release pull requests and manual dispatches; GitHub treats skipped
+jobs as successful checks, so ordinary pull requests are not blocked. For what each check does and
+how to run it locally, see [quality-and-security.md](quality-and-security.md) and
+[e2e-deploy.md](e2e-deploy.md).
+
+### `e2e-deploy` environment
+
+The `End-to-end deploy` job runs in the `e2e-deploy` environment (Settings → Environments). It holds
+the `AWS_E2E_ROLE_ARN` and `AWS_E2E_REGION` variables and a custom branch policy that allows `main`
+and `release-please--*`. Only jobs in that environment receive the AWS OIDC credentials, so fork
+pull requests and other branches cannot deploy. See [e2e-deploy.md](e2e-deploy.md).
 
 ## Security features
 
@@ -78,6 +88,8 @@ verify it with a pull request.
 
 - A direct push to `main` is rejected.
 - A pull request with a failing required check cannot merge.
+- A normal pull request shows `End-to-end deploy` as skipped and still merges.
+- A release pull request cannot merge until `End-to-end deploy` passes.
 - A pull request without an approval is blocked for contributors; the admin can still merge their own
   through the review ruleset bypass.
 - A compliant pull request merges with a squash commit.

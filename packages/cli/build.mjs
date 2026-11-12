@@ -12,6 +12,7 @@ await build({
   entryPoints: [
     join(root, "src", "index.ts"),
     join(root, "src", "scripts", "build-release-artifacts.ts"),
+    join(root, "src", "scripts", "e2e-verify.ts"),
     join(root, "src", "scripts", "verify-package.ts"),
   ],
   outbase: join(root, "src"),
