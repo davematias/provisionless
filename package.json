@@ -40,12 +40,12 @@
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
     "husky": "9.1.7",
-    "lint-staged": "17.6.0",
-    "oxfmt": "0.68.0",
-    "oxlint": "1.83.0",
+    "lint-staged": "17.6.2",
+    "oxfmt": "0.79.0",
+    "oxlint": "1.94.0",
     "sharp": "0.35.5",
-    "turbo": "2.10.12",
+    "turbo": "2.11.13",
     "typescript": "6.0.3",
-    "vitest": "5.0.5"
+    "vitest": "5.1.1"
   }
 }
